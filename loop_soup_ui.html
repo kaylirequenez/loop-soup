@@ -1,0 +1,1858 @@
+<style>
+  @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Manrope:wght@400;500&display=swap");
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  :root {
+    --surf: #1a0b2e;
+    --surf-low: #150629;
+    --surf-lowest: #0d0318;
+    --surf-high: rgba(42, 20, 72, 0.6);
+    --surf-highest: #2e1550;
+    --surf-bright: #3d1f6a;
+    --primary: #00dbe7;
+    --primary-dim: #00a8b2;
+    --primary-dark: #002a2d;
+    --on-primary: #001f22;
+    --on-surf: #e8e0f0;
+    --on-surf-var: #9b8ab4;
+    --outline-var: rgba(155, 138, 180, 0.15);
+    --glow: rgba(0, 219, 231, 0.07);
+    --glow-strong: rgba(0, 219, 231, 0.15);
+    --layer-a: #00dbe7;
+    --layer-b: #b57bff;
+    --layer-c: #ff6b9d;
+    --layer-d: #ffb347;
+    --layer-e: #7effa0;
+    --font-head: "Space Grotesk", sans-serif;
+    --font-body: "Manrope", sans-serif;
+  }
+  body {
+    font-family: var(--font-body);
+    background: var(--surf);
+    color: var(--on-surf);
+  }
+  .screen {
+    background: var(--surf);
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 720px;
+    border: 0.5px solid rgba(0, 219, 231, 0.12);
+  }
+  .top-bar {
+    background: var(--surf-low);
+    padding: 8px 16px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+  .stats {
+    display: flex;
+    gap: 18px;
+  }
+  .stat-val {
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--primary);
+  }
+  .stat-label {
+    font-size: 9px;
+    color: var(--on-surf-var);
+    margin-top: 1px;
+    font-family: var(--font-body);
+  }
+  .hook-btn {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--on-primary);
+    border: none;
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-head);
+    letter-spacing: 0.02em;
+  }
+  .top-right {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+  }
+  .live-pill {
+    font-size: 10px;
+    color: var(--primary);
+    background: rgba(0, 219, 231, 0.08);
+    border: 0.5px solid rgba(0, 219, 231, 0.25);
+    border-radius: 20px;
+    padding: 3px 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-head);
+  }
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--primary);
+  }
+  .loop-num {
+    font-size: 10px;
+    color: var(--on-surf-var);
+    font-family: var(--font-head);
+  }
+  .main {
+    display: grid;
+    grid-template-columns: 82px 1fr;
+    flex: 1;
+    overflow: hidden;
+  }
+  .sp-zone {
+    background: var(--surf-lowest);
+    padding: 8px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-right: 0.5px solid rgba(0, 219, 231, 0.1);
+  }
+  .sp-hdr {
+    font-size: 9px;
+    color: var(--primary);
+    font-weight: 500;
+    text-align: center;
+    font-family: var(--font-head);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .sp-badge {
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    text-align: center;
+    font-family: var(--font-head);
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .sp-body {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    min-height: 0;
+  }
+  .sp-strip {
+    width: 14px;
+    background: var(--surf-lowest);
+    border-radius: 4px;
+    border: 0.5px solid rgba(0, 219, 231, 0.2);
+    position: relative;
+    cursor: crosshair;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 8px rgba(0, 219, 231, 0.05);
+  }
+  .sp-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    background: var(--primary);
+  }
+  .note-col {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+  .nb {
+    flex: 1;
+    border: 0.5px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    font-weight: 500;
+    min-height: 12px;
+    border-radius: 2px;
+    font-family: var(--font-head);
+  }
+  .nb-s {
+    background: rgba(0, 219, 231, 0.08);
+    color: var(--primary);
+    border-color: rgba(0, 219, 231, 0.2);
+  }
+  .nb-c {
+    background: rgba(13, 3, 24, 0.6);
+    color: rgba(155, 138, 180, 0.3);
+    border-color: transparent;
+  }
+  .nb-a {
+    background: var(--primary);
+    color: var(--on-primary);
+    border-color: var(--primary);
+  }
+  .nb-o {
+    border-color: rgba(0, 219, 231, 0.35);
+    border-width: 1px;
+  }
+  .sp-note {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--primary);
+    text-align: center;
+    padding-top: 3px;
+    font-family: var(--font-head);
+  }
+  .right {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .view-bar {
+    display: flex;
+    gap: 5px;
+    padding: 6px 10px;
+    background: var(--surf-low);
+    align-items: center;
+  }
+  .vb {
+    font-size: 10px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--on-surf-var);
+    cursor: pointer;
+    border: 0.5px solid transparent;
+    font-family: var(--font-body);
+  }
+  .vb-on {
+    background: var(--surf-highest);
+    color: var(--on-surf);
+    border-color: var(--outline-var);
+  }
+  .sounds-toggle {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--on-surf-var);
+    cursor: pointer;
+    border: 0.5px solid var(--outline-var);
+    font-family: var(--font-body);
+  }
+  .sounds-toggle-on {
+    color: var(--primary);
+    border-color: rgba(0, 219, 231, 0.3);
+    background: rgba(0, 219, 231, 0.05);
+  }
+  .mid-area {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+  .layers-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .layers-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 7px;
+  }
+  .lc {
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    background: var(--surf-high);
+    backdrop-filter: blur(12px);
+    border: 0.5px solid var(--outline-var);
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  .lc:hover {
+    border-color: rgba(0, 219, 231, 0.15);
+  }
+  .lc-sel {
+    border-color: rgba(0, 219, 231, 0.35);
+    box-shadow:
+      0 0 18px rgba(0, 219, 231, 0.08),
+      inset 0 0.5px 0 rgba(0, 219, 231, 0.15);
+  }
+  .lc-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .lc-name {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-head);
+  }
+  .pills {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(155, 138, 180, 0.1);
+    color: var(--on-surf-var);
+    font-family: var(--font-body);
+  }
+  .pill-on {
+    background: rgba(0, 219, 231, 0.1);
+    color: var(--primary);
+  }
+  .pill-snd {
+    background: rgba(155, 138, 180, 0.15);
+    color: var(--on-surf);
+  }
+  .pill-play {
+    background: rgba(0, 219, 231, 0.08);
+    color: var(--primary);
+  }
+  .pill-idle {
+    background: rgba(13, 3, 24, 0.5);
+    color: rgba(155, 138, 180, 0.4);
+  }
+  .lc-bot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .fdr {
+    flex: 1;
+    height: 4px;
+    background: var(--surf-lowest);
+    border-radius: 4px;
+    position: relative;
+    cursor: ew-resize;
+  }
+  .fdr-fill {
+    height: 100%;
+    border-radius: 4px;
+    position: absolute;
+    left: 0;
+  }
+  .fdr-thumb {
+    width: 8px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--surf-bright);
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    border: 0.5px solid rgba(0, 219, 231, 0.3);
+    box-shadow: 0 0 6px rgba(0, 219, 231, 0.15);
+  }
+  .knobs {
+    display: flex;
+    gap: 5px;
+  }
+  .kg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .knob {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surf-lowest);
+    border: 0.5px solid var(--outline-var);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+  }
+  .knob svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .kd {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--primary);
+    z-index: 1;
+  }
+  .kl {
+    font-size: 7px;
+    color: var(--on-surf-var);
+    text-align: center;
+    margin-top: 2px;
+    font-family: var(--font-body);
+  }
+  .comp-zone {
+    background: var(--surf-lowest);
+    padding: 7px 9px;
+    flex-shrink: 0;
+  }
+  .comp-hdr {
+    font-size: 9px;
+    color: var(--on-surf-var);
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-head);
+  }
+  .crow {
+    display: grid;
+    grid-template-columns: 12px 1fr;
+    gap: 5px;
+    align-items: center;
+    margin-bottom: 3px;
+  }
+  .clbl {
+    font-size: 9px;
+    font-weight: 600;
+    font-family: var(--font-head);
+  }
+  .ctrack {
+    height: 13px;
+    background: rgba(13, 3, 24, 0.8);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cblock {
+    height: 100%;
+    position: absolute;
+    border-radius: 2px;
+    opacity: 0.7;
+  }
+  .cblock-add {
+    opacity: 0.3;
+    border: 0.5px dashed;
+  }
+  .ph {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1.5px;
+    background: #ff4c6a;
+    z-index: 2;
+  }
+  .sound-picker {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 160px;
+    background: rgba(21, 6, 41, 0.85);
+    backdrop-filter: blur(20px);
+    border-left: 0.5px solid rgba(0, 219, 231, 0.15);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+    box-shadow: -8px 0 32px rgba(0, 219, 231, 0.05);
+  }
+  .picker-open {
+    transform: translateX(0);
+  }
+  .picker-hdr {
+    padding: 9px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .picker-hdr-label {
+    font-size: 9px;
+    color: var(--on-surf-var);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--font-head);
+  }
+  .picker-layer {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-head);
+  }
+  .snd-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 5px;
+  }
+  .snd-item {
+    padding: 7px 9px;
+    border-radius: 7px;
+    font-size: 11px;
+    color: var(--on-surf-var);
+    cursor: pointer;
+    margin-bottom: 3px;
+    border: 0.5px solid transparent;
+    font-family: var(--font-body);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(155, 138, 180, 0.04);
+  }
+  .snd-item:hover {
+    background: rgba(155, 138, 180, 0.08);
+    color: var(--on-surf);
+  }
+  .snd-active {
+    background: rgba(0, 219, 231, 0.07);
+    color: var(--primary);
+    border-color: rgba(0, 219, 231, 0.2);
+    box-shadow: 0 0 12px rgba(0, 219, 231, 0.05);
+  }
+  .snd-preview {
+    background: rgba(181, 123, 255, 0.08);
+    color: #b57bff;
+    border-color: rgba(181, 123, 255, 0.25);
+  }
+  .snd-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #b57bff;
+  }
+  .picker-btns {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .pbtn {
+    font-size: 10px;
+    padding: 6px;
+    border-radius: 7px;
+    background: rgba(155, 138, 180, 0.08);
+    color: var(--on-surf-var);
+    cursor: pointer;
+    text-align: center;
+    border: 0.5px solid var(--outline-var);
+    font-family: var(--font-body);
+  }
+  .pbtn-sample {
+    background: rgba(181, 123, 255, 0.1);
+    color: #b57bff;
+    border-color: rgba(181, 123, 255, 0.25);
+  }
+  .pbtn-confirm {
+    background: rgba(0, 219, 231, 0.08);
+    color: var(--primary);
+    border-color: rgba(0, 219, 231, 0.25);
+  }
+  .midi-view {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .midi-content {
+    flex: 1;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+  }
+  .mtrack-lbl {
+    font-size: 9px;
+    font-weight: 600;
+    font-family: var(--font-head);
+    margin-bottom: 2px;
+  }
+  .piano-roll {
+    height: 58px;
+    background: var(--surf-lowest);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .semi-div {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0.5px;
+    background: rgba(155, 138, 180, 0.08);
+  }
+  .semi-c {
+    background: rgba(155, 138, 180, 0.18);
+  }
+  .mnote {
+    position: absolute;
+    border-radius: 2px;
+    opacity: 0.85;
+  }
+  .mroll-ph {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1.5px;
+    background: #ff4c6a;
+    z-index: 2;
+  }
+  .bottom {
+    background: var(--surf-low);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .clbl2 {
+    font-size: 8px;
+    color: var(--on-surf-var);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--font-head);
+  }
+  .ctrls {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+  .btn {
+    background: rgba(155, 138, 180, 0.08);
+    border: 0.5px solid var(--outline-var);
+    border-radius: 7px;
+    color: var(--on-surf-var);
+    font-size: 10px;
+    padding: 5px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: var(--font-body);
+  }
+  .btn-on {
+    background: rgba(0, 219, 231, 0.1);
+    color: var(--primary);
+    border-color: rgba(0, 219, 231, 0.3);
+    box-shadow: 0 0 10px rgba(0, 219, 231, 0.08);
+  }
+  .btn-add {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    font-size: 20px;
+    background: rgba(155, 138, 180, 0.08);
+    border: 0.5px solid var(--outline-var);
+    color: rgba(155, 138, 180, 0.3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-head);
+  }
+  .btn-add-on {
+    background: rgba(0, 219, 231, 0.1);
+    color: var(--primary);
+    border-color: rgba(0, 219, 231, 0.4);
+    box-shadow: 0 0 16px rgba(0, 219, 231, 0.12);
+  }
+  .btn-play {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(155, 138, 180, 0.08);
+    border: 0.5px solid var(--outline-var);
+    color: var(--on-surf-var);
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-play-on {
+    background: linear-gradient(
+      135deg,
+      rgba(0, 219, 231, 0.25),
+      rgba(0, 42, 45, 0.4)
+    );
+    border-color: rgba(0, 219, 231, 0.5);
+    color: var(--primary);
+    box-shadow: 0 0 16px rgba(0, 219, 231, 0.12);
+  }
+  .rep-btn {
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    background: rgba(155, 138, 180, 0.06);
+    color: var(--on-surf-var);
+    cursor: pointer;
+    border: 0.5px solid transparent;
+    font-family: var(--font-head);
+  }
+  .rep-on {
+    background: rgba(0, 219, 231, 0.1);
+    color: var(--primary);
+    border-color: rgba(0, 219, 231, 0.25);
+  }
+  .sep {
+    width: 0.5px;
+    height: 26px;
+    background: var(--outline-var);
+  }
+  .oct-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--on-surf);
+    min-width: 18px;
+    text-align: center;
+    font-family: var(--font-head);
+  }
+</style>
+
+<div style="padding: 0.5rem 0">
+  <div
+    style="
+      font-size: 10px;
+      color: var(--color-text-secondary);
+      margin-bottom: 8px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    "
+  >
+    <button
+      onclick="togglePlay()"
+      style="
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: transparent;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+      "
+    >
+      play/pause
+    </button>
+    <button
+      onclick="toggleAdd()"
+      style="
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: transparent;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+      "
+    >
+      toggle add
+    </button>
+    <button
+      onclick="togglePicker()"
+      style="
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: transparent;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+      "
+    >
+      sound picker
+    </button>
+    <button
+      onclick="setView('layers')"
+      style="
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: transparent;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+      "
+    >
+      layers
+    </button>
+    <button
+      onclick="setView('midi')"
+      style="
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: transparent;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+      "
+    >
+      midi roll
+    </button>
+    <button
+      onclick="toggleSample()"
+      style="
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: transparent;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+      "
+    >
+      sample toggle
+    </button>
+    <button
+      onclick="toggleExtend()"
+      style="
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 0.5px solid var(--color-border-secondary);
+        background: transparent;
+        cursor: pointer;
+        color: var(--color-text-secondary);
+      "
+    >
+      extend
+    </button>
+  </div>
+
+  <div class="screen">
+    <div class="top-bar">
+      <div class="stats">
+        <div>
+          <div class="stat-val">128</div>
+          <div class="stat-label">BPM</div>
+        </div>
+        <div>
+          <div class="stat-val">A min</div>
+          <div class="stat-label">key</div>
+        </div>
+        <div>
+          <div class="stat-val">4/4</div>
+          <div class="stat-label">meter</div>
+        </div>
+        <div>
+          <div class="stat-val">4 bars</div>
+          <div class="stat-label">loop</div>
+        </div>
+      </div>
+      <button class="hook-btn">+ make hook</button>
+      <div class="top-right">
+        <span class="loop-num" id="loop-num">loop 2 of 4</span>
+        <div class="live-pill" id="live-pill">
+          <div class="live-dot" id="live-dot"></div>
+          <span id="live-txt">live</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="sp-zone">
+        <div class="sp-hdr">softpot</div>
+        <div
+          class="sp-badge"
+          id="sp-badge"
+          style="
+            color: var(--primary);
+            background: rgba(0, 219, 231, 0.08);
+            border: 0.5px solid rgba(0, 219, 231, 0.25);
+          "
+        >
+          A
+        </div>
+        <div class="sp-body">
+          <div class="sp-strip" id="sp-strip">
+            <div
+              class="sp-dot"
+              id="sp-dot"
+              style="top: 40%; box-shadow: 0 0 8px var(--primary)"
+            ></div>
+          </div>
+          <div class="note-col" id="note-col"></div>
+        </div>
+        <div class="sp-note" id="sp-note">E4</div>
+      </div>
+
+      <div class="right">
+        <div class="view-bar">
+          <button class="vb vb-on" id="vb-layers" onclick="setView('layers')">
+            layers
+          </button>
+          <button class="vb" id="vb-midi" onclick="setView('midi')">
+            midi roll
+          </button>
+          <button
+            class="sounds-toggle"
+            id="sounds-toggle"
+            onclick="togglePicker()"
+          >
+            sounds ▸
+          </button>
+        </div>
+
+        <div class="mid-area" id="mid-area">
+          <div class="layers-view" id="layers-view">
+            <div class="layers-scroll">
+              <div
+                class="lc lc-sel"
+                id="lc-A"
+                onclick="selectLayer('A', 'var(--layer-a)', 'rgba(0,219,231,')"
+              >
+                <div class="lc-top">
+                  <span class="lc-name" style="color: var(--layer-a)"
+                    >A — hook</span
+                  >
+                  <div class="pills">
+                    <span class="pill pill-on">×1</span>
+                    <span class="pill pill-snd">synth lead</span>
+                    <span class="pill">oct 4</span>
+                    <span class="pill pill-play">playing</span>
+                  </div>
+                </div>
+                <div class="lc-bot">
+                  <div class="fdr">
+                    <div
+                      class="fdr-fill"
+                      style="
+                        width: 70%;
+                        background: linear-gradient(
+                          90deg,
+                          var(--primary-dark),
+                          var(--primary)
+                        );
+                      "
+                    ></div>
+                    <div class="fdr-thumb" style="left: 70%"></div>
+                  </div>
+                  <div class="knobs">
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 1 1 18.5 17"
+                            fill="none"
+                            stroke="var(--primary)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".75"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="box-shadow: 0 0 5px var(--primary)"
+                        ></div>
+                      </div>
+                      <div class="kl">fltr</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 14 3.5"
+                            fill="none"
+                            stroke="var(--primary)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".45"
+                          />
+                        </svg>
+                        <div class="kd"></div>
+                      </div>
+                      <div class="kl">rvb</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 11 3"
+                            fill="none"
+                            stroke="var(--primary)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".2"
+                          />
+                        </svg>
+                        <div class="kd"></div>
+                      </div>
+                      <div class="kl">trsp</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="lc"
+                id="lc-B"
+                onclick="
+                  selectLayer('B', 'var(--layer-b)', 'rgba(181,123,255,')
+                "
+              >
+                <div class="lc-top">
+                  <span class="lc-name" style="color: var(--layer-b)"
+                    >B — bass</span
+                  >
+                  <div class="pills">
+                    <span class="pill">×1</span>
+                    <span class="pill pill-snd">sub bass</span>
+                    <span class="pill">oct 1</span>
+                    <span class="pill pill-idle">idle</span>
+                  </div>
+                </div>
+                <div class="lc-bot">
+                  <div class="fdr">
+                    <div
+                      class="fdr-fill"
+                      style="
+                        width: 50%;
+                        background: linear-gradient(
+                          90deg,
+                          rgba(80, 40, 140, 0.8),
+                          var(--layer-b)
+                        );
+                      "
+                    ></div>
+                    <div class="fdr-thumb" style="left: 50%"></div>
+                  </div>
+                  <div class="knobs">
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 14 3.5"
+                            fill="none"
+                            stroke="var(--layer-b)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".5"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-b)"
+                        ></div>
+                      </div>
+                      <div class="kl">fltr</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 11 3"
+                            fill="none"
+                            stroke="var(--layer-b)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".3"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-b)"
+                        ></div>
+                      </div>
+                      <div class="kl">rvb</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 1 1 18.5 17"
+                            fill="none"
+                            stroke="var(--layer-b)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".65"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-b)"
+                        ></div>
+                      </div>
+                      <div class="kl">drv</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="lc"
+                id="lc-C"
+                onclick="
+                  selectLayer('C', 'var(--layer-c)', 'rgba(255,107,157,')
+                "
+              >
+                <div class="lc-top">
+                  <span class="lc-name" style="color: var(--layer-c)"
+                    >C — melody</span
+                  >
+                  <div class="pills">
+                    <span class="pill">one-shot</span>
+                    <span class="pill pill-snd">pluck</span>
+                    <span class="pill">oct 3</span>
+                    <span class="pill pill-idle">idle</span>
+                  </div>
+                </div>
+                <div class="lc-bot">
+                  <div class="fdr">
+                    <div
+                      class="fdr-fill"
+                      style="
+                        width: 80%;
+                        background: linear-gradient(
+                          90deg,
+                          rgba(120, 30, 60, 0.8),
+                          var(--layer-c)
+                        );
+                      "
+                    ></div>
+                    <div class="fdr-thumb" style="left: 80%"></div>
+                  </div>
+                  <div class="knobs">
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 1 1 18.5 17"
+                            fill="none"
+                            stroke="var(--layer-c)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".8"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-c)"
+                        ></div>
+                      </div>
+                      <div class="kl">fltr</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 14 3.5"
+                            fill="none"
+                            stroke="var(--layer-c)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".45"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-c)"
+                        ></div>
+                      </div>
+                      <div class="kl">rvb</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 11 3"
+                            fill="none"
+                            stroke="var(--layer-c)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".25"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-c)"
+                        ></div>
+                      </div>
+                      <div class="kl">dly</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="lc"
+                id="lc-D"
+                onclick="selectLayer('D', 'var(--layer-d)', 'rgba(255,179,71,')"
+              >
+                <div class="lc-top">
+                  <span class="lc-name" style="color: var(--layer-d)"
+                    >D — harmony</span
+                  >
+                  <div class="pills">
+                    <span class="pill">×2</span>
+                    <span class="pill pill-snd">pad</span>
+                    <span class="pill">oct 2</span>
+                    <span class="pill pill-idle">idle</span>
+                  </div>
+                </div>
+                <div class="lc-bot">
+                  <div class="fdr">
+                    <div
+                      class="fdr-fill"
+                      style="
+                        width: 35%;
+                        background: linear-gradient(
+                          90deg,
+                          rgba(100, 60, 10, 0.8),
+                          var(--layer-d)
+                        );
+                      "
+                    ></div>
+                    <div class="fdr-thumb" style="left: 35%"></div>
+                  </div>
+                  <div class="knobs">
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 11 3"
+                            fill="none"
+                            stroke="var(--layer-d)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".35"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-d)"
+                        ></div>
+                      </div>
+                      <div class="kl">fltr</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 1 1 18.5 17"
+                            fill="none"
+                            stroke="var(--layer-d)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".75"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-d)"
+                        ></div>
+                      </div>
+                      <div class="kl">rvb</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 14 3.5"
+                            fill="none"
+                            stroke="var(--layer-d)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".3"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-d)"
+                        ></div>
+                      </div>
+                      <div class="kl">wid</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                class="lc"
+                id="lc-E"
+                onclick="
+                  selectLayer('E', 'var(--layer-e)', 'rgba(126,255,160,')
+                "
+              >
+                <div class="lc-top">
+                  <span class="lc-name" style="color: var(--layer-e)"
+                    >E — drums</span
+                  >
+                  <div class="pills">
+                    <span class="pill">×1</span>
+                    <span class="pill pill-snd">electronic kit</span>
+                    <span class="pill pill-play">playing</span>
+                  </div>
+                </div>
+                <div class="lc-bot">
+                  <div class="fdr">
+                    <div
+                      class="fdr-fill"
+                      style="
+                        width: 60%;
+                        background: linear-gradient(
+                          90deg,
+                          rgba(20, 60, 30, 0.8),
+                          var(--layer-e)
+                        );
+                      "
+                    ></div>
+                    <div class="fdr-thumb" style="left: 60%"></div>
+                  </div>
+                  <div class="knobs">
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 14 3.5"
+                            fill="none"
+                            stroke="var(--layer-e)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".5"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-e)"
+                        ></div>
+                      </div>
+                      <div class="kl">fltr</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 0 1 11 3"
+                            fill="none"
+                            stroke="var(--layer-e)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".3"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-e)"
+                        ></div>
+                      </div>
+                      <div class="kl">rvb</div>
+                    </div>
+                    <div class="kg">
+                      <div class="knob">
+                        <svg viewBox="0 0 22 22">
+                          <path
+                            d="M3.5 17 A9.5 9.5 0 1 1 18.5 17"
+                            fill="none"
+                            stroke="var(--layer-e)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            opacity=".6"
+                          />
+                        </svg>
+                        <div
+                          class="kd"
+                          style="background: var(--layer-e)"
+                        ></div>
+                      </div>
+                      <div class="kl">room</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="comp-zone">
+              <div class="comp-hdr">
+                <span>composition</span><span id="comp-loop">loop 2 of 4</span>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-a)">A</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="left: 0; width: 100%; background: var(--layer-a)"
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-b)">B</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="left: 0; width: 100%; background: var(--layer-b)"
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow" id="crow-C">
+                <div class="clbl" style="color: var(--layer-c)">C</div>
+                <div class="ctrack" id="ctrack-C">
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-d)">D</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="left: 25%; width: 25%; background: var(--layer-d)"
+                  ></div>
+                  <div
+                    class="cblock"
+                    style="left: 75%; width: 25%; background: var(--layer-d)"
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-e)">E</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="left: 0; width: 100%; background: var(--layer-e)"
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="midi-view" id="midi-view">
+            <div class="midi-content">
+              <div>
+                <div class="mtrack-lbl" style="color: var(--layer-b)">
+                  B — bass (normalized)
+                </div>
+                <div class="piano-roll" id="roll-B"></div>
+              </div>
+              <div>
+                <div class="mtrack-lbl" style="color: var(--layer-c)">
+                  C — melody (normalized)
+                </div>
+                <div class="piano-roll" id="roll-C"></div>
+              </div>
+              <div>
+                <div class="mtrack-lbl" style="color: var(--layer-d)">
+                  D — harmony (normalized)
+                </div>
+                <div class="piano-roll" id="roll-D"></div>
+              </div>
+            </div>
+            <div class="comp-zone">
+              <div class="comp-hdr">
+                <span>composition</span><span>loop 2 of 4</span>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-a)">A</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="
+                      left: 0;
+                      width: 100%;
+                      background: var(--layer-a);
+                      opacity: 0.5;
+                    "
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-b)">B</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="
+                      left: 0;
+                      width: 100%;
+                      background: var(--layer-b);
+                      opacity: 0.5;
+                    "
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-c)">C</div>
+                <div class="ctrack">
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-d)">D</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="
+                      left: 25%;
+                      width: 50%;
+                      background: var(--layer-d);
+                      opacity: 0.5;
+                    "
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+              <div class="crow">
+                <div class="clbl" style="color: var(--layer-e)">E</div>
+                <div class="ctrack">
+                  <div
+                    class="cblock"
+                    style="
+                      left: 0;
+                      width: 100%;
+                      background: var(--layer-e);
+                      opacity: 0.5;
+                    "
+                  ></div>
+                  <div class="ph" style="left: 28%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sound-picker" id="sound-picker">
+            <div class="picker-hdr">
+              <span class="picker-hdr-label">sounds</span>
+              <span
+                class="picker-layer"
+                id="picker-layer"
+                style="color: var(--primary)"
+                >layer A</span
+              >
+            </div>
+            <div class="snd-list" id="snd-list"></div>
+            <div class="picker-btns">
+              <div
+                class="pbtn pbtn-sample"
+                id="sample-btn"
+                onclick="toggleSample()"
+              >
+                sample · on
+              </div>
+              <div class="pbtn pbtn-confirm">confirm</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="cluster">
+        <div class="clbl2">transport</div>
+        <div class="ctrls">
+          <button
+            class="btn-play btn-play-on"
+            id="play-btn"
+            onclick="togglePlay()"
+          >
+            ▶
+          </button>
+          <button class="btn-add btn-add-on" id="add-btn" onclick="toggleAdd()">
+            +
+          </button>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="cluster">
+        <div class="clbl2">extend</div>
+        <div class="ctrls">
+          <button class="btn" id="extend-btn" onclick="toggleExtend()">
+            extend
+          </button>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="cluster">
+        <div class="clbl2">repeat</div>
+        <div class="ctrls">
+          <button class="rep-btn rep-on" id="rep1" onclick="setRep(1)">
+            1
+          </button>
+          <button class="rep-btn" id="rep2" onclick="setRep(2)">2</button>
+          <button class="rep-btn" id="rep3" onclick="setRep(3)">3</button>
+          <button class="rep-btn" id="rep4" onclick="setRep(4)">4</button>
+          <button class="rep-btn" id="rep8" onclick="setRep(8)">8</button>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="cluster">
+        <div class="clbl2">octave</div>
+        <div class="ctrls">
+          <button class="btn" onclick="chOct(-1)">−</button>
+          <span class="oct-val" id="oct-val">4</span>
+          <button class="btn" onclick="chOct(1)">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const notes = [
+    "C",
+    "C#",
+    "D",
+    "D#",
+    "E",
+    "F",
+    "F#",
+    "G",
+    "G#",
+    "A",
+    "A#",
+    "B",
+  ];
+  const scaleA = ["A", "B", "C", "D", "E", "F", "G"];
+  const soundsMap = {
+    A: ["synth lead", "pluck", "bell", "pad lead", "organ"],
+    B: ["sub bass", "reese bass", "moog bass", "808"],
+    C: ["synth lead", "pluck", "bell", "pad lead", "organ"],
+    D: ["pad", "strings", "choir", "Rhodes", "stab"],
+    E: ["electronic kit", "acoustic kit", "lo-fi kit"],
+  };
+  let playing = true,
+    addOn = true,
+    extendOn = false,
+    pickerOpen = false,
+    sampleOn = true,
+    oct = 4,
+    rep = 1,
+    selLayer = "A",
+    dragging = false;
+
+  function buildNotes() {
+    const col = document.getElementById("note-col");
+    col.innerHTML = "";
+    for (let i = 23; i >= 0; i--) {
+      const ni = (9 + i) % 12,
+        n = notes[ni],
+        inS = scaleA.includes(n),
+        isC = n === "C";
+      const ov = 3 + Math.floor((9 + i) / 12);
+      const d = document.createElement("div");
+      d.className = "nb " + (inS ? "nb-s" : "nb-c") + (isC ? " nb-o" : "");
+      d.id = "nb" + i;
+      d.style.borderWidth = isC ? "1px" : "0.5px";
+      d.textContent = isC ? n + ov : n;
+      col.appendChild(d);
+    }
+  }
+
+  function updateDot(pct) {
+    const dot = document.getElementById("sp-dot"),
+      nd = document.getElementById("sp-note");
+    dot.style.top = pct * 100 + "%";
+    const semi = Math.round((1 - pct) * 23),
+      ni = (9 + semi) % 12,
+      ov = 3 + Math.floor((9 + semi) / 12);
+    nd.textContent = notes[ni] + ov;
+    document.querySelectorAll(".nb").forEach((e) => {
+      const idx = parseInt(e.id.replace("nb", ""));
+      const inS = scaleA.includes(notes[(9 + idx) % 12]);
+      e.className =
+        "nb " +
+        (inS ? "nb-s" : "nb-c") +
+        (notes[(9 + idx) % 12] === "C" ? " nb-o" : "");
+    });
+    const ae = document.getElementById("nb" + semi);
+    if (ae) ae.className = "nb nb-a";
+  }
+
+  buildNotes();
+  updateDot(0.4);
+  const strip = document.getElementById("sp-strip");
+  strip.addEventListener("mousedown", (e) => {
+    dragging = true;
+    mv(e);
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (dragging) mv(e);
+  });
+  document.addEventListener("mouseup", () => {
+    dragging = false;
+  });
+  function mv(e) {
+    const r = strip.getBoundingClientRect();
+    updateDot(Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)));
+  }
+
+  function selectLayer(l, col, rgba) {
+    selLayer = l;
+    document
+      .querySelectorAll(".lc")
+      .forEach((c) => c.classList.remove("lc-sel"));
+    const el = document.getElementById("lc-" + l);
+    if (el) el.classList.add("lc-sel");
+    const b = document.getElementById("sp-badge");
+    b.textContent = l;
+    b.style.color = col;
+    b.style.borderColor = rgba + "0.3)";
+    b.style.background = rgba + "0.08)";
+    const pl = document.getElementById("picker-layer");
+    pl.textContent = "layer " + l;
+    pl.style.color = col;
+    buildSoundList(l, col, rgba);
+  }
+
+  function buildSoundList(l, col, rgba) {
+    const list = document.getElementById("snd-list");
+    list.innerHTML = "";
+    (soundsMap[l] || []).forEach((s, i) => {
+      const d = document.createElement("div");
+      d.className =
+        "snd-item" +
+        (i === 0 ? " snd-active" : i === 1 && sampleOn ? " snd-preview" : "");
+      if (i === 1 && sampleOn) d.innerHTML = s + ' <div class="snd-dot"></div>';
+      else d.textContent = s;
+      d.onclick = () => {
+        document.querySelectorAll(".snd-item").forEach((x) => {
+          x.classList.remove("snd-active", "snd-preview");
+          x.innerHTML = x.textContent;
+        });
+        d.classList.add(sampleOn ? "snd-preview" : "snd-active");
+        if (sampleOn) d.innerHTML = s + ' <div class="snd-dot"></div>';
+      };
+      list.appendChild(d);
+    });
+  }
+
+  function togglePicker() {
+    pickerOpen = !pickerOpen;
+    document.getElementById("sound-picker").className =
+      "sound-picker" + (pickerOpen ? " picker-open" : "");
+    const t = document.getElementById("sounds-toggle");
+    t.className = "sounds-toggle" + (pickerOpen ? " sounds-toggle-on" : "");
+    t.textContent = pickerOpen ? "sounds ✕" : "sounds ▸";
+    if (pickerOpen)
+      buildSoundList(selLayer, "var(--primary)", "rgba(0,219,231,");
+  }
+
+  function toggleSample() {
+    sampleOn = !sampleOn;
+    const btn = document.getElementById("sample-btn");
+    btn.className = "pbtn" + (sampleOn ? " pbtn-sample" : "");
+    btn.textContent = "sample · " + (sampleOn ? "on" : "off");
+    buildSoundList(selLayer, "var(--primary)", "rgba(0,219,231,");
+  }
+
+  function toggleAdd() {
+    addOn = !addOn;
+    document.getElementById("add-btn").className = addOn
+      ? "btn-add btn-add-on"
+      : "btn-add";
+    const ct = document.getElementById("ctrack-C");
+    ct.innerHTML = addOn
+      ? '<div class="cblock cblock-add" style="left:0;width:25%;background:var(--layer-c);border-color:var(--layer-c)"></div><div class="ph" style="left:28%"></div>'
+      : '<div class="ph" style="left:28%"></div>';
+  }
+
+  function togglePlay() {
+    playing = !playing;
+    const btn = document.getElementById("play-btn");
+    btn.className = playing ? "btn-play btn-play-on" : "btn-play";
+    btn.textContent = playing ? "▶" : "⏸";
+    const lp = document.getElementById("live-pill"),
+      lt = document.getElementById("live-txt"),
+      ld = document.getElementById("live-dot");
+    lp.style.borderColor = playing
+      ? "rgba(0,219,231,0.25)"
+      : "var(--outline-var)";
+    lp.style.background = playing ? "rgba(0,219,231,0.08)" : "transparent";
+    ld.style.background = playing ? "var(--primary)" : "var(--on-surf-var)";
+    lt.textContent = playing ? "live" : "stopped";
+    lt.style.color = playing ? "var(--primary)" : "var(--on-surf-var)";
+  }
+
+  function toggleExtend() {
+    extendOn = !extendOn;
+    document.getElementById("extend-btn").className =
+      "btn" + (extendOn ? " btn-on" : "");
+  }
+
+  function setRep(n) {
+    rep = n;
+    [1, 2, 3, 4, 8].forEach((v) => {
+      const b = document.getElementById("rep" + v);
+      if (b) b.className = "rep-btn" + (v === n ? " rep-on" : "");
+    });
+  }
+
+  function chOct(d) {
+    oct = Math.max(0, Math.min(7, oct + d));
+    document.getElementById("oct-val").textContent = oct;
+  }
+
+  function setView(v) {
+    document.getElementById("layers-view").style.display =
+      v === "layers" ? "flex" : "none";
+    document.getElementById("midi-view").style.display =
+      v === "midi" ? "flex" : "none";
+    document.getElementById("vb-layers").className =
+      "vb" + (v === "layers" ? " vb-on" : "");
+    document.getElementById("vb-midi").className =
+      "vb" + (v === "midi" ? " vb-on" : "");
+    if (v === "midi") buildMidi();
+  }
+
+  function buildMidi() {
+    const conf = {
+      B: {
+        col: "var(--layer-b)",
+        notes: [
+          [0, 0.25, 7],
+          [0.25, 0.5, 7],
+          [0.5, 0.75, 5],
+          [0.75, 1, 5],
+        ],
+      },
+      C: { col: "var(--layer-c)", notes: [] },
+      D: {
+        col: "var(--layer-d)",
+        notes: [
+          [0, 0.5, 4],
+          [0.5, 1, 2],
+        ],
+      },
+    };
+    Object.entries(conf).forEach(([k, { col, notes }]) => {
+      const r = document.getElementById("roll-" + k);
+      r.innerHTML = "";
+      for (let i = 0; i < 12; i++) {
+        const l = document.createElement("div");
+        l.className = "semi-div" + (i === 0 || i === 5 ? " semi-c" : "");
+        l.style.top = (i / 12) * 100 + "%";
+        r.appendChild(l);
+      }
+      notes.forEach(([s, e, si]) => {
+        const n = document.createElement("div");
+        n.className = "mnote";
+        n.style.cssText = `left:${s * 100}%;width:${(e - s) * 100 - 0.5}%;top:${((11 - si) / 12) * 100}%;height:${100 / 12 - 0.5}%;background:${col}`;
+        r.appendChild(n);
+      });
+      const ph = document.createElement("div");
+      ph.className = "mroll-ph";
+      ph.style.left = "28%";
+      r.appendChild(ph);
+    });
+  }
+</script>
