@@ -14,6 +14,7 @@ const DEFAULT_LAYER = {
   reverb: 0.2,
   layerFx: 0.0,
   extraKnobs: 1,
+  extraKnobValues: [0.5, 0.5, 0.5],
   status: "idle",
   muted: false,
   hasContent: false,
@@ -34,6 +35,7 @@ export const useAppStore = create((set) => ({
   selectedLayer: "A",
   currentView: "layers",
   pickerOpen: false,
+  softpotPosition: 0.652173913,
   midiRollCount: 1,
   midiMenuOpen: true,
   sampleSoundOn: true,
@@ -73,6 +75,8 @@ export const useAppStore = create((set) => ({
   setView: (value) => set({ currentView: value }),
   setPickerOpen: (value) => set({ pickerOpen: value }),
   togglePickerOpen: () => set((state) => ({ pickerOpen: !state.pickerOpen })),
+  setSoftpotPosition: (value) =>
+    set({ softpotPosition: Math.max(0, Math.min(1, value)) }),
   setMidiRollCount: (value) =>
     set({ midiRollCount: value >= 2 ? 2 : 1 }),
   toggleMidiMenuOpen: () =>
@@ -108,6 +112,46 @@ export const useAppStore = create((set) => ({
         },
       },
     })),
+
+  setLayerVolume: (id, volume) =>
+    set((state) => ({
+      layers: {
+        ...state.layers,
+        [id]: {
+          ...state.layers[id],
+          volume: Math.max(0, Math.min(1, volume)),
+        },
+      },
+    })),
+
+  setLayerKnobValue: (id, knobKey, value) =>
+    set((state) => ({
+      layers: {
+        ...state.layers,
+        [id]: {
+          ...state.layers[id],
+          [knobKey]: Math.max(0, Math.min(1, value)),
+        },
+      },
+    })),
+
+  setLayerExtraKnobValue: (id, knobIndex, value) =>
+    set((state) => {
+      const baseValues = state.layers[id].extraKnobValues ?? [0.5, 0.5, 0.5];
+      const nextValues = [...baseValues];
+      if (knobIndex >= 0 && knobIndex < nextValues.length) {
+        nextValues[knobIndex] = Math.max(0, Math.min(1, value));
+      }
+      return {
+        layers: {
+          ...state.layers,
+          [id]: {
+            ...state.layers[id],
+            extraKnobValues: nextValues,
+          },
+        },
+      };
+    }),
 
   toggleLayerMute: (id) =>
     set((state) => {

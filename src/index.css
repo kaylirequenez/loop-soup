@@ -215,6 +215,7 @@ body {
   box-shadow: inset 0 0 8px rgba(0, 219, 231, 0.05);
   position: relative;
   cursor: crosshair;
+  touch-action: none;
 }
 .sp-dot {
   width: 12px;
@@ -263,6 +264,11 @@ body {
 .nb-o {
   border-color: rgba(0, 219, 231, 0.35);
   border-width: 1px;
+}
+.nb-a {
+  box-shadow: inset 0 0 0 1px rgba(0, 219, 231, 0.85);
+  background: rgba(0, 219, 231, 0.18);
+  color: var(--on-surf);
 }
 .drum-col {
   border: 0.5px solid var(--outline-var);
@@ -400,6 +406,8 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .lc:last-child {
   margin-bottom: 0;
@@ -469,7 +477,7 @@ body {
   padding: 0 132px 0 92px;
   transform: translateX(calc(var(--left-rail-width, 82px) * -0.5));
   pointer-events: none;
-  z-index: 0;
+  z-index: 2;
 }
 .layer-right-ctrls {
   width: 128px;
@@ -489,6 +497,22 @@ body {
   background: var(--surf-lowest);
   border-radius: 4px;
   position: relative;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.fdr-limit {
+  position: absolute;
+  top: -12px;
+  font-size: 7px;
+  color: rgba(155, 138, 180, 0.65);
+  text-transform: lowercase;
+  pointer-events: none;
+}
+.fdr-limit-min {
+  left: 0;
+}
+.fdr-limit-max {
+  right: 0;
 }
 .fdr-fill {
   height: 100%;
@@ -555,21 +579,64 @@ body {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--surf-lowest);
-  border: 0.5px solid var(--outline-var);
+  background: radial-gradient(
+    circle at 35% 30%,
+    rgba(78, 53, 116, 0.42) 0%,
+    rgba(35, 18, 60, 0.9) 52%,
+    rgba(13, 3, 24, 0.95) 100%
+  );
+  border: 0.5px solid rgba(155, 138, 180, 0.28);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.08),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 219, 231, 0.04);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  cursor: ns-resize;
+  touch-action: none;
 }
-.kd {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+.knob-ring {
+  position: absolute;
+  inset: 0;
+  width: 40px;
+  height: 40px;
+  overflow: visible;
+  pointer-events: none;
+}
+.knob-ring-track,
+.knob-ring-value {
+  fill: none;
+  stroke-width: 4px;
+  stroke-linecap: round;
+}
+.knob-ring-track {
+  opacity: 0.24;
+}
+.knob-ring-value {
+  opacity: 0.95;
+}
+.knob-indicator {
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: 50% 100%;
+  z-index: 1;
 }
 .kl {
   font-size: 9px;
   color: var(--on-surf-var);
   margin-top: 3px;
+}
+
+body.drag-selection-lock,
+body.drag-selection-lock * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .comp-zone {
