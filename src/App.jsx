@@ -40,6 +40,9 @@ export default function App() {
   const addLayerKnob = useAppStore((s) => s.addLayerKnob);
   const soloLayerId = useAppStore((s) => s.soloLayerId);
   const setSampleSoundOn = useAppStore((s) => s.setSampleSoundOn);
+  const setBpm = useAppStore((s) => s.setBpm);
+  const setKey = useAppStore((s) => s.setKey);
+  const setMeter = useAppStore((s) => s.setMeter);
   const selectedLayerData = layers[selectedLayer];
   const repeat = selectedLayerData?.repeat ?? 1;
   const octave = selectedLayerData?.octave ?? 4;
@@ -72,6 +75,9 @@ export default function App() {
           onOpenHook={() => setShowHookModal(true)}
           currentLoop={currentLoop}
           totalLoops={totalLoops}
+          onSetBpm={setBpm}
+          onSetKey={setKey}
+          onSetMeter={setMeter}
         />
 
         <div className="main">

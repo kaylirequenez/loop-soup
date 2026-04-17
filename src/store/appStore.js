@@ -87,6 +87,9 @@ export const useAppStore = create((set) => ({
     set((state) => ({ midiMenuOpen: !state.midiMenuOpen })),
   setSampleSoundOn: (value) => set({ sampleSoundOn: value }),
   setPreviewSound: (value) => set({ previewSound: value }),
+  setBpm: (value) => set({ bpm: value }),
+  setKey: (value) => set({ key: value }),
+  setMeter: (value) => set({ meter: value }),
 
   updateLayer: (id, patch) =>
     set((state) => ({
