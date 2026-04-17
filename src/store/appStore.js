@@ -3,6 +3,10 @@ import { create } from "zustand";
 const LAYERS = ["A", "B", "C", "D", "E"];
 const REPEAT_OPTIONS = [1, 2, 3, 4];
 const MAX_EXTRA_KNOBS = 3;
+const SOFTPOT_HIGH_ROOT_INDEX = 11;
+const SOFTPOT_STEPS = 24;
+const DEFAULT_SOFTPOT_POSITION =
+  SOFTPOT_HIGH_ROOT_INDEX / (SOFTPOT_STEPS - 1);
 
 const DEFAULT_LAYER = {
   sound: null,
@@ -35,7 +39,7 @@ export const useAppStore = create((set) => ({
   selectedLayer: "A",
   currentView: "layers",
   pickerOpen: false,
-  softpotPosition: 0.652173913,
+  softpotPosition: DEFAULT_SOFTPOT_POSITION,
   midiRollCount: 1,
   midiMenuOpen: true,
   sampleSoundOn: true,

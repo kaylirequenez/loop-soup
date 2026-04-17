@@ -9,12 +9,15 @@ import { useAppStore } from "../store/appStore";
  */
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const SCALE_A_MINOR = new Set(["A", "B", "C", "D", "E", "F", "G"]);
+const A_NOTE_INDEX = 9;
 
 export default function SoftPot({ selectedLayer, octave }) {
   const isDrums = selectedLayer === "E";
   const softpotPosition = useAppStore((s) => s.softpotPosition);
   const setSoftpotPosition = useAppStore((s) => s.setSoftpotPosition);
-  const activeIndex = Math.max(0, Math.min(23, Math.round((1 - softpotPosition) * 23)));
+  const activeIndex = Math.max(0, Math.min(23, Math.round(softpotPosition * 23)));
+  const baseOctave = typeof octave === "number" ? octave : 3;
+  const baseMidi = (baseOctave + 1) * 12 + A_NOTE_INDEX;
 
   const updateFromPointer = (element, clientY) => {
     const rect = element.getBoundingClientRect();
@@ -56,13 +59,15 @@ export default function SoftPot({ selectedLayer, octave }) {
           <div className="note-col">
             {Array.from({ length: 24 }).map((_, i) => {
               const semitone = 23 - i;
-              const noteName = NOTES[(9 + semitone) % 12];
+              const midi = baseMidi + semitone;
+              const noteName = NOTES[midi % 12];
+              const noteOctave = Math.floor(midi / 12) - 1;
               const inScale = SCALE_A_MINOR.has(noteName);
               const isC = noteName === "C";
               const cls = `nb ${inScale ? "nb-s" : "nb-c"} ${isC ? "nb-o" : ""} ${i === activeIndex ? "nb-a" : ""}`;
               return (
                 <div className={cls} key={i}>
-                  {isC ? `${noteName}${octave}` : noteName}
+                  {isC ? `${noteName}${noteOctave}` : noteName}
                 </div>
               );
             })}
