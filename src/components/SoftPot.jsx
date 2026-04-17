@@ -14,7 +14,6 @@ export default function SoftPot({ selectedLayer, octave }) {
   return (
     <div className="sp-zone">
       <div className="sp-hdr">softpot</div>
-      <div className="sp-badge">{selectedLayer}</div>
 
       <div className="sp-body">
         <div className="sp-strip">
@@ -44,8 +43,6 @@ export default function SoftPot({ selectedLayer, octave }) {
           </div>
         )}
       </div>
-
-      <div className="sp-note">{isDrums ? "snare" : "E4"}</div>
     </div>
   );
 }

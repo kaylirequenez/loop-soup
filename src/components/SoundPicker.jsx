@@ -6,7 +6,12 @@ import { SOUND_OPTIONS } from "../lib/specs";
  * - Show list for selected layer and sample/confirm controls.
  * - Later: headphone preview and boundary-quantized confirm.
  */
-export default function SoundPicker({ selectedLayer, open }) {
+export default function SoundPicker({
+  selectedLayer,
+  open,
+  sampleSoundOn,
+  onToggleSample,
+}) {
   const sounds = SOUND_OPTIONS[selectedLayer] ?? [];
 
   return (
@@ -29,7 +34,12 @@ export default function SoundPicker({ selectedLayer, open }) {
       </div>
 
       <div className="picker-btns">
-        <button className="pbtn pbtn-sample">sample · on</button>
+        <button
+          className={`pbtn ${sampleSoundOn ? "pbtn-sample" : ""}`}
+          onClick={onToggleSample}
+        >
+          {`sample · ${sampleSoundOn ? "on" : "off"}`}
+        </button>
         <button className="pbtn pbtn-confirm">confirm</button>
       </div>
     </aside>

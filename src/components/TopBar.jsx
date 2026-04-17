@@ -7,6 +7,10 @@
  */
 export default function TopBar({
   isPlaying,
+  bpm,
+  keyName,
+  meter,
+  loopLength,
   onOpenHook,
   currentLoop,
   totalLoops,
@@ -15,19 +19,19 @@ export default function TopBar({
     <div className="top-bar">
       <div className="stats">
         <div>
-          <div className="stat-val">128</div>
+          <div className="stat-val">{bpm}</div>
           <div className="stat-label">BPM</div>
         </div>
         <div>
-          <div className="stat-val">A min</div>
+          <div className="stat-val">{keyName}</div>
           <div className="stat-label">key</div>
         </div>
         <div>
-          <div className="stat-val">4/4</div>
+          <div className="stat-val">{meter}</div>
           <div className="stat-label">meter</div>
         </div>
         <div>
-          <div className="stat-val">4 bars</div>
+          <div className="stat-val">{`${loopLength} bars`}</div>
           <div className="stat-label">loop</div>
         </div>
       </div>

@@ -25,8 +25,10 @@ export default function BottomControls({
           <button
             className={`btn-play ${isPlaying ? "btn-play-on" : ""}`}
             onClick={onTogglePlay}
+            aria-label={isPlaying ? "Pause transport" : "Play transport"}
+            title={isPlaying ? "Pause" : "Play"}
           >
-            {isPlaying ? "▶" : "⏸"}
+            {isPlaying ? "⏸" : "▶"}
           </button>
           <button
             className={`btn-add ${addOn ? "btn-add-on" : ""}`}

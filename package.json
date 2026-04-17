@@ -24,9 +24,12 @@
   },
   "homepage": "https://github.com/kaylirequenez/loop-soup#readme",
   "dependencies": {
+    "essentia.js": "^0.1.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tone": "^15.1.22"
+    "tonal": "^6.4.3",
+    "tone": "^15.1.22",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
