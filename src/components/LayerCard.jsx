@@ -37,7 +37,7 @@ const describeArc = (startDeg, endDeg) => {
 /**
  * Spec contract:
  * - One card per layer with selection state.
- * - Show repeat/mode, sound, octave, status pills.
+ * - Show sound pill and loop count (repeat / transpose on bottom bar).
  * - Show volume fader and three knobs (filter, reverb, layer-specific).
  * - Later: pointer drag for fader/knobs + real store/audio binding.
  */
@@ -56,18 +56,8 @@ export default function LayerCard({
   const setLayerExtraKnobValue = useAppStore((s) => s.setLayerExtraKnobValue);
   const meta = LAYER_META[layerId];
   const color = LAYER_COLORS[layerId];
-  const repeatText =
-    layer?.mode === "oneshot"
-      ? "one-shot"
-      : typeof layer?.repeat === "number"
-        ? `×${layer.repeat}`
-        : typeof meta.repeat === "number"
-          ? `×${meta.repeat}`
-          : meta.repeat;
   const sound = layer?.sound ?? meta.sound;
-  const octave = layer?.octave ?? meta.octave;
-  const status =
-    layer?.status ?? (layerId === "A" || layerId === "E" ? "playing" : "idle");
+  const loopCount = Math.max(0, layer?.loops?.length ?? 0);
   const muted = Boolean(layer?.muted);
   const faderPercent = Math.round((layer?.volume ?? 0.65) * 100);
   const extraKnobs = Math.max(
@@ -183,22 +173,19 @@ export default function LayerCard({
           {`${layerId} — ${meta.role}`}
         </span>
         <div className="pills">
-          <span className="pill pill-on">{repeatText}</span>
           <span className="pill pill-snd">{sound}</span>
-          {octave !== null && <span className="pill">{`oct ${octave}`}</span>}
-          <span
-            className={`pill ${status === "playing" ? "pill-play" : "pill-idle"}`}
-          >
-            {status}
-          </span>
+          <span className="pill">{`${loopCount} loop${loopCount === 1 ? "" : "s"}`}</span>
         </div>
       </div>
       <div className="knob-center">
         <div className="knobs">
           {knobLabels.map((label, index) => (
-            <div className="kg" key={label}>
+            <div className="kg" key={`${layerId}-knob-${index}`}>
               {(() => {
-                const knobValue = Math.max(0, Math.min(1, knobValues[index] ?? 0.5));
+                const knobValue = Math.max(
+                  0,
+                  Math.min(1, knobValues[index] ?? 0.5),
+                );
                 const knobAngle = KNOB_ARC_START_DEG + knobValue * KNOB_ARC_SWEEP_DEG;
                 const fullArcPath = describeArc(
                   KNOB_ARC_START_DEG,

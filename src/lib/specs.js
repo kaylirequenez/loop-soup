@@ -13,24 +13,18 @@ export const LAYER_META = {
     role: "hook",
     fxLabel: "trsp",
     sound: "synth lead",
-    repeat: 1,
-    octave: 4,
   },
-  B: { role: "bass", fxLabel: "drv", sound: "sub bass", repeat: 1, octave: 1 },
+  B: { role: "bass", fxLabel: "drv", sound: "sub bass" },
   C: {
     role: "melody",
     fxLabel: "dly",
     sound: "pluck",
-    repeat: "one-shot",
-    octave: 3,
   },
-  D: { role: "harmony", fxLabel: "wid", sound: "pad", repeat: 2, octave: 2 },
+  D: { role: "harmony", fxLabel: "wid", sound: "pad" },
   E: {
     role: "drums",
     fxLabel: "room",
     sound: "electronic kit",
-    repeat: 1,
-    octave: null,
   },
 };
 
@@ -41,5 +35,3 @@ export const SOUND_OPTIONS = {
   D: ["pad", "strings", "choir", "Rhodes", "stab"],
   E: ["electronic kit", "acoustic kit", "lo-fi kit"],
 };
-
-export const REPEAT_OPTIONS = [1, 2, 3, 4];

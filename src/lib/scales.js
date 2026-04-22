@@ -13,7 +13,10 @@ export function detectKeyFromMidi() {
   return null;
 }
 
-export function positionToMidi() {
-  // Spec contract: SoftPot normalized position -> MIDI note over 24 semitones.
-  return null;
+import { softpotMidiFromNormalizedPosition } from "./keyLayout.js";
+
+export { softpotMidiFromNormalizedPosition };
+
+export function positionToMidi(position01, keyName, layerOctave) {
+  return softpotMidiFromNormalizedPosition(position01, keyName, layerOctave);
 }
