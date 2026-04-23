@@ -1,5 +1,5 @@
 import type { KeyboardEvent, PointerEvent } from "react";
-import type { LayerId } from "../../types/model";
+import type { LayerId } from "../../types/layer";
 import type { MidiRollTapParams, RollSlot } from "./types";
 
 interface MidiRollNoteProps {

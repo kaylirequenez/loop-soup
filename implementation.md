@@ -1,8 +1,4 @@
-# loop soup — implementation guide for cursor
-
-This document describes exactly how to implement the Loop Soup browser UI. It is written as a detailed specification for an AI coding assistant. Follow it top to bottom — each section builds on the previous. Do not skip sections.
-
-Read README.md first for the full product overview before implementing anything here.
+# OUTDATED IGNORE!
 
 ---
 

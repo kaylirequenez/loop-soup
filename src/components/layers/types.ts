@@ -2,7 +2,7 @@ import type {
   LayerId,
   LayerState,
   LayersState,
-} from "../../types/model";
+} from "../../types/layer";
 
 export type LayerHandler = (id: LayerId) => void;
 

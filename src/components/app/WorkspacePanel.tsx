@@ -2,12 +2,16 @@ import LayerList from "../LayerList";
 import MidiMeasureNav from "../MidiMeasureNav";
 import MidiRoll from "../MidiRoll";
 import SoundPicker from "../SoundPicker";
-import { useAppStore } from "../../store/appStore";
-import { useCompositionTiming, useViewFlags } from "../../store/hooks";
+import { useMidiStore } from "../../store/midiStore";
+import { useLayerStore } from "../../store/layerStore";
+import { useLayerEditorStore } from "../../store/layerEditorStore";
+import { useLayerPlaybackStore } from "../../store/layerPlaybackStore";
+import { useTransportStore } from "../../store/transportStore";
 import { deriveMidiLayerRollMenuFromLoops } from "../../store/utils/midiPlacement";
+import { getTimelineMetrics } from "../../store/utils/timeline";
 import { oneBasedRange } from "../../lib/range";
 import { LAYER_ORDER } from "../../lib/layers";
-import type { LayerId, LayersState } from "../../types/model";
+import type { LayerId, LayersState } from "../../types/layer";
 
 const MIDI_MENU_LAYER_ROLL_OPTS = [
   { key: "1", value: "1", label: "1", title: "Show this layer on roll 1 only" },
@@ -28,30 +32,38 @@ function LayerPane(props: {
 }
 
 export default function WorkspacePanel() {
-  const currentView = useAppStore((s) => s.currentView);
-  const setView = useAppStore((s) => s.setView);
-  const midiMenuOpen = useAppStore((s) => s.midiMenuOpen);
-  const toggleMidiMenuOpen = useAppStore((s) => s.toggleMidiMenuOpen);
-  const midiRollSplitByRootOctave = useAppStore((s) => s.midiRollSplitByRootOctave);
-  const midiRollCount = useAppStore((s) => s.midiRollCount);
-  const toggleSecondRoll = useAppStore((s) => s.toggleSecondRoll);
-  const setSplitByRootOctaveEnabled = useAppStore((s) => s.setSplitByRootOctaveEnabled);
-  const midiMeasuresVisible = useAppStore((s) => s.midiMeasuresVisible);
-  const setMidiMeasuresVisible = useAppStore((s) => s.setMidiMeasuresVisible);
-  const layers = useAppStore((s) => s.layers);
-  const midiLoopRollPlacement = useAppStore((s) => s.midiLoopRollPlacement);
-  const setMidiLayerRollPlacement = useAppStore((s) => s.setMidiLayerRollPlacement);
-  const pickerOpen = useAppStore((s) => s.pickerOpen);
-  const togglePickerOpen = useAppStore((s) => s.togglePickerOpen);
-  const sampleSoundOn = useAppStore((s) => s.sampleSoundOn);
-  const setSampleSoundOn = useAppStore((s) => s.setSampleSoundOn);
-  const selectedLayer = useAppStore((s) => s.selectedLayer);
-  const selectLayer = useAppStore((s) => s.selectLayer);
-  const toggleLayerMute = useAppStore((s) => s.toggleLayerMute);
-  const toggleLayerSolo = useAppStore((s) => s.toggleLayerSolo);
-  const soloLayerId = useAppStore((s) => s.soloLayerId);
-  const { showLayers, showMidi, dualView } = useViewFlags();
-  const { measureCount: layerMeasureCount } = useCompositionTiming();
+  const currentView = useMidiStore((s) => s.currentView);
+  const setView = useMidiStore((s) => s.setView);
+  const midiMenuOpen = useMidiStore((s) => s.midiMenuOpen);
+  const toggleMidiMenuOpen = useMidiStore((s) => s.toggleMidiMenuOpen);
+  const midiRollSplitByRootOctave = useMidiStore((s) => s.midiRollSplitByRootOctave);
+  const midiRollCount = useMidiStore((s) => s.midiRollCount);
+  const toggleSecondRoll = useMidiStore((s) => s.toggleSecondRoll);
+  const setSplitByRootOctaveEnabled = useMidiStore((s) => s.setSplitByRootOctaveEnabled);
+  const midiMeasuresVisible = useMidiStore((s) => s.midiMeasuresVisible);
+  const setMidiMeasuresVisible = useMidiStore((s) => s.setMidiMeasuresVisible);
+  const layers = useLayerStore((s) => s.layers);
+  const selectedLayer = useLayerEditorStore((s) => s.selectedLayerId);
+  const toggleLayerMute = useLayerPlaybackStore((s) => s.toggleLayerMute);
+  const toggleLayerSolo = useLayerPlaybackStore((s) => s.toggleLayerSolo);
+  const soloLayerId = useLayerPlaybackStore((s) => s.soloLayerId);
+  const midiLoopRollPlacement = useMidiStore((s) => s.midiLoopRollPlacement);
+  const setMidiLayerRollPlacement = useMidiStore((s) => s.setMidiLayerRollPlacement);
+  const pickerOpen = useMidiStore((s) => s.pickerOpen);
+  const togglePickerOpen = useMidiStore((s) => s.togglePickerOpen);
+  const sampleSoundOn = useMidiStore((s) => s.sampleSoundOn);
+  const setSampleSoundOn = useMidiStore((s) => s.setSampleSoundOn);
+  const selectLayer = useMidiStore((s) => s.selectLayer);
+  const meter = useTransportStore((s) => s.meter);
+  const masterLoopLength = useTransportStore((s) => s.masterLoopLength);
+  const showLayers = currentView === "layers" || currentView === "dual";
+  const showMidi = currentView === "midi" || currentView === "dual";
+  const dualView = currentView === "dual";
+  const { measureCount: layerMeasureCount } = getTimelineMetrics(
+    meter,
+    masterLoopLength,
+    midiMeasuresVisible,
+  );
   const showStackedRoll = midiRollCount === 2;
   const rollPlacementMenuEnabled = showStackedRoll && !midiRollSplitByRootOctave;
 

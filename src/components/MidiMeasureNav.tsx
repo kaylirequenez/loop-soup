@@ -1,6 +1,7 @@
-import { useAppStore } from "../store/appStore";
-import { useMidiViewportMetrics } from "../store/hooks";
-import type { AppView } from "../types/model";
+import { useMidiStore } from "../store/midiStore";
+import { useTransportStore } from "../store/transportStore";
+import { getTimelineMetrics, playheadMeasureIndex } from "../store/utils/timeline";
+import type { AppView } from "../types/app";
 
 interface MidiMeasureNavProps {
   currentView: AppView;
@@ -13,13 +14,30 @@ function formatVisibleMeasuresLabel(startIdx0: number, visibleCount: number) {
 }
 
 export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
-  const midiViewMeasureIndex = useAppStore((s) => s.midiViewMeasureIndex);
-  const setMidiViewMeasureIndex = useAppStore((s) => s.setMidiViewMeasureIndex);
-  const snapPlayheadToVisibleWindowStart = useAppStore(
+  const midiViewMeasureIndex = useMidiStore((s) => s.midiViewMeasureIndex);
+  const setMidiViewMeasureIndex = useMidiStore((s) => s.setMidiViewMeasureIndex);
+  const snapPlayheadToVisibleWindowStart = useMidiStore(
     (s) => s.snapPlayheadToVisibleWindowStart,
   );
-  const { beatsPerMeasure, beatLength, visibleCount, maxStart, playheadNotInView } =
-    useMidiViewportMetrics();
+  const midiPlayheadBeat = useMidiStore((s) => s.midiPlayheadBeat);
+  const midiMeasuresVisible = useMidiStore((s) => s.midiMeasuresVisible);
+  const meter = useTransportStore((s) => s.meter);
+  const masterLoopLength = useTransportStore((s) => s.masterLoopLength);
+  const { beatsPerMeasure, beatLength, visibleCount, maxStart } = getTimelineMetrics(
+    meter,
+    masterLoopLength,
+    midiMeasuresVisible,
+  );
+  const currentStart = Math.max(0, Math.min(maxStart, midiViewMeasureIndex));
+  const playheadMeasureIdx = playheadMeasureIndex(
+    midiPlayheadBeat,
+    beatLength,
+    beatsPerMeasure,
+    Math.max(1, Math.ceil(beatLength / beatsPerMeasure)),
+  );
+  const playheadNotInView =
+    playheadMeasureIdx < currentStart ||
+    playheadMeasureIdx >= currentStart + visibleCount;
 
   const show =
     (currentView === "midi" || currentView === "dual") &&
@@ -33,21 +51,21 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
       <button
         type="button"
         className="midi-measure-btn"
-        disabled={midiViewMeasureIndex <= 0}
-        onClick={() => setMidiViewMeasureIndex(Math.max(0, midiViewMeasureIndex - 1))}
+        disabled={currentStart <= 0}
+        onClick={() => setMidiViewMeasureIndex(Math.max(0, currentStart - 1))}
         aria-label="previous measure"
       >
         ←
       </button>
       <span className="midi-measure-label">
-        {formatVisibleMeasuresLabel(midiViewMeasureIndex, visibleCount)}
+        {formatVisibleMeasuresLabel(currentStart, visibleCount)}
       </span>
       <button
         type="button"
         className="midi-measure-btn"
-        disabled={midiViewMeasureIndex >= maxStart}
+        disabled={currentStart >= maxStart}
         onClick={() =>
-          setMidiViewMeasureIndex(Math.min(maxStart, midiViewMeasureIndex + 1))
+          setMidiViewMeasureIndex(Math.min(maxStart, currentStart + 1))
         }
         aria-label="next measure"
       >

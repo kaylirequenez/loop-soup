@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import { useAppStore } from "../store/appStore";
+import { useMidiStore } from "../store/midiStore";
+import { useTransportStore } from "../store/transportStore";
 
 const MAX_DT_MS = 250;
 
 export default function TransportRunner() {
-  const isPlaying = useAppStore((s) => s.isPlaying);
-  const transportNonce = useAppStore((s) => s.transportNonce);
+  const isPlaying = useTransportStore((s) => s.isPlaying);
+  const transportNonce = useTransportStore((s) => s.transportNonce);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -16,15 +17,15 @@ export default function TransportRunner() {
     let lastT = performance.now();
 
     const tick = () => {
-      const s = useAppStore.getState();
-      if (!s.isPlaying) {
+      const transportState = useTransportStore.getState();
+      if (!transportState.isPlaying) {
         return;
       }
 
       const now = performance.now();
       const dt = Math.min(now - lastT, MAX_DT_MS);
       lastT = now;
-      s.advanceTransportByMs(dt);
+      useMidiStore.getState().advanceTransportByMs(dt);
 
       rafId = requestAnimationFrame(tick);
     };

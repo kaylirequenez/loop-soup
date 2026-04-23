@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { useAppStore } from "../store/appStore";
+import { useMidiStore } from "../store/midiStore";
+import { useTransportStore } from "../store/transportStore";
 import { softpotChromoRows } from "../lib/keyLayout";
-import type { LayerId } from "../types/model";
+import type { LayerId } from "../types/layer";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
@@ -28,9 +29,9 @@ interface SoftPotProps {
 
 export default function SoftPot({ selectedLayer, octave }: SoftPotProps) {
   const isDrums = selectedLayer === "E";
-  const softpotPosition = useAppStore((s) => s.softpotPosition);
-  const setSoftpotPosition = useAppStore((s) => s.setSoftpotPosition);
-  const keyName = useAppStore((s) => s.key);
+  const softpotPosition = useMidiStore((s) => s.softpotPosition);
+  const setSoftpotPosition = useMidiStore((s) => s.setSoftpotPosition);
+  const keyName = useTransportStore((s) => s.key);
   const activeIndex = Math.max(
     0,
     Math.min(23, Math.round(softpotPosition * (SOFTPOT_STEPS - 1))),

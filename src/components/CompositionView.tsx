@@ -1,13 +1,16 @@
 import { useMemo } from "react";
 import type { CSSProperties, PointerEvent } from "react";
-import {
-  useCompositionViewActions,
-  useCompositionViewState,
-} from "../store/hooks";
+import { layerLoopsForUi } from "../lib/layerRuntime";
+import { useMidiStore } from "../store/midiStore";
+import { useLayerStore } from "../store/layerStore";
+import { useLayerEditorStore } from "../store/layerEditorStore";
+import { useLoopDefinitionStore } from "../store/loopDefinitionStore";
+import { useTransportStore } from "../store/transportStore";
 import { getMidiLoopRollPlacement } from "../store/utils/midiPlacement";
 import { beatsPerMeasureFromMeter, compositionLoopBeatLength } from "../lib/midiPlayhead";
 import { phraseGlobalStartBeat, repeatOffsetsFromLoop } from "../lib/midiRollExpand";
-import type { LayerLoop, MidiRollPlacement } from "../types/model";
+import type { LayerLoopInstanceRow } from "../types/layer";
+import type { MidiRollPlacement } from "../types/midi";
 
 const MAX_VISIBLE_ROWS = 6;
 const LOOP_ROLL_PLACEMENT_UI: Array<{ key: string; value: MidiRollPlacement; label: string; title: string }> = [
@@ -23,7 +26,7 @@ function rowHeightForLoopCount(loopCount: number) {
   return 14;
 }
 
-function loopSegments(loop: LayerLoop, beatsPerMeasure: number, compositionBeats: number) {
+function loopSegments(loop: LayerLoopInstanceRow, beatsPerMeasure: number, compositionBeats: number) {
   const span = Math.max(1, Math.floor(loop?.spanBeats) || 1);
   const baseStart = phraseGlobalStartBeat(loop, beatsPerMeasure);
   return repeatOffsetsFromLoop(loop, beatsPerMeasure, compositionBeats)
@@ -39,28 +42,28 @@ function loopSegments(loop: LayerLoop, beatsPerMeasure: number, compositionBeats
 }
 
 export default function CompositionView() {
-  const {
-    selectedLayer,
-    layers,
-    meter,
-    masterLoopLength,
-    midiPlayheadBeat,
-    midiNoteSelection,
-    midiRollCount,
-    midiRollSplitByRootOctave,
-    midiLoopRollPlacement,
-  } = useCompositionViewState();
-  const {
-    setLayerLoopPhraseSelection,
-    seekCompositionTimelineToBeat,
-    setMidiLoopRollPlacement,
-  } = useCompositionViewActions();
+  const selectedLayer = useLayerEditorStore((s) => s.selectedLayerId);
+  const layers = useLayerStore((s) => s.layers);
+  const definitions = useLoopDefinitionStore((s) => s.definitions);
+  const meter = useTransportStore((s) => s.meter);
+  const masterLoopLength = useTransportStore((s) => s.masterLoopLength);
+  const midiPlayheadBeat = useMidiStore((s) => s.midiPlayheadBeat);
+  const midiNoteSelection = useMidiStore((s) => s.midiNoteSelection);
+  const midiRollCount = useMidiStore((s) => s.midiRollCount);
+  const midiRollSplitByRootOctave = useMidiStore((s) => s.midiRollSplitByRootOctave);
+  const midiLoopRollPlacement = useMidiStore((s) => s.midiLoopRollPlacement);
+  const setLayerLoopPhraseSelection = useMidiStore((s) => s.setLayerLoopPhraseSelection);
+  const seekCompositionTimelineToBeat = useMidiStore((s) => s.seekCompositionTimelineToBeat);
+  const setMidiLoopRollPlacement = useMidiStore((s) => s.setMidiLoopRollPlacement);
   const beatsPerMeasure = beatsPerMeasureFromMeter(meter);
   const compositionBeats = compositionLoopBeatLength(masterLoopLength, beatsPerMeasure);
   const measureCount = Math.max(1, Math.ceil(compositionBeats / beatsPerMeasure));
   const nowBeat = Math.min(Math.max(0, midiPlayheadBeat ?? 0), compositionBeats - 1e-6);
   const playheadLeftPct = (nowBeat / compositionBeats) * 100;
-  const loops = useMemo(() => layers[selectedLayer].loops, [layers, selectedLayer]);
+  const loops = useMemo(
+    () => layerLoopsForUi(layers[selectedLayer], definitions),
+    [layers, selectedLayer, definitions],
+  );
   const visibleRows = Math.min(MAX_VISIBLE_ROWS, Math.max(1, loops.length));
   const rowHeight = rowHeightForLoopCount(loops.length);
   const showRollPlacement = midiRollCount >= 2 && !midiRollSplitByRootOctave;
@@ -69,7 +72,7 @@ export default function CompositionView() {
     if (!midiNoteSelection || midiNoteSelection.layerId !== selectedLayer || loops.length === 0) {
       return -1;
     }
-    return loops.findIndex((loop) => loop.id === midiNoteSelection.loopId);
+    return loops.findIndex((loop) => loop.loopId === midiNoteSelection.loopId);
   }, [midiNoteSelection, selectedLayer, loops]);
 
   const onCompositionTrackPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
@@ -112,9 +115,9 @@ export default function CompositionView() {
         {loops.map((loop, idx) => {
           const bars = loopSegments(loop, beatsPerMeasure, compositionBeats);
           const isSelected = idx === selectedLoopIndex;
-          const rollPlacement = getMidiLoopRollPlacement(midiLoopRollPlacement, selectedLayer, loop.id);
+          const rollPlacement = getMidiLoopRollPlacement(midiLoopRollPlacement, selectedLayer, loop.loopId);
           return (
-            <div className={`crow ${showRollPlacement ? "crow--roll-pick" : ""}`} key={loop.id}>
+            <div className={`crow ${showRollPlacement ? "crow--roll-pick" : ""}`} key={loop.loopId}>
               <button
                 type="button"
                 className={`clbl clbl-loop-select ${isSelected ? "clbl-loop-select--on" : ""}`}
@@ -131,14 +134,14 @@ export default function CompositionView() {
               >
                 {Array.from({ length: Math.max(0, measureCount - 1) }).map((_, measureIdx) => (
                   <div
-                    key={`m-${loop.id}-${measureIdx}`}
+                    key={`m-${loop.loopId}-${measureIdx}`}
                     className="comp-measure-divider"
                     style={{ left: `${(((measureIdx + 1) * beatsPerMeasure) / compositionBeats) * 100}%` }}
                   />
                 ))}
                 {bars.map((bar, barIdx) => (
                   <div
-                    key={`b-${loop.id}-${barIdx}`}
+                    key={`b-${loop.loopId}-${barIdx}`}
                     className={`cblock mnote-${selectedLayer.toLowerCase()} mnote-loop-${idx % 4} ${isSelected ? "mnote-focus mnote-layer-selected" : "mnote-layer-unselected"}`}
                     style={{
                       left: `${(bar.startBeat / compositionBeats) * 100}%`,
@@ -162,7 +165,7 @@ export default function CompositionView() {
                       className={`comp-roll-placement-btn ${rollPlacement === opt.value ? "comp-roll-placement-btn--on" : ""}`}
                       title={opt.title}
                       aria-pressed={rollPlacement === opt.value}
-                      onClick={() => setMidiLoopRollPlacement(selectedLayer, loop.id, opt.value)}
+                      onClick={() => setMidiLoopRollPlacement(selectedLayer, loop.loopId, opt.value)}
                     >
                       {opt.label}
                     </button>

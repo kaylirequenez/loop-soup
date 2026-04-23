@@ -3,11 +3,12 @@
  */
 
 import { repeatEveryForUnit, repeatIntervalBeats } from "./loopModel";
-import type { LayerLoop, LoopNote } from "../types/model";
+import type { LayerLoopInstanceRow } from "../types/layer";
+import type { LoopNote } from "../types/loop";
 
 /** Global beat index of the earliest phrase anchor in the bar (0-based timeline). */
 export function phraseGlobalStartBeat(
-  loop: LayerLoop,
+  loop: LayerLoopInstanceRow,
   beatsPerMeasure: number,
 ): number {
   const bpm = Math.max(1, beatsPerMeasure);
@@ -19,7 +20,7 @@ export function phraseGlobalStartBeat(
  * Repeat offsets (beats) from `phraseGlobalStartBeat` for tiling the span-long pattern.
  */
 export function repeatOffsetsFromLoop(
-  loop: LayerLoop,
+  loop: LayerLoopInstanceRow,
   beatsPerMeasure: number,
   compositionBeats: number,
 ): number[] {
@@ -67,7 +68,7 @@ interface BaseNote extends Omit<LoopNote, "octave"> {
 
 export function expandBaseNotesToComposition(
   baseNotes: BaseNote[],
-  loop: LayerLoop,
+  loop: LayerLoopInstanceRow,
   beatsPerMeasure: number,
   compositionBeats: number,
 ): (BaseNote & {

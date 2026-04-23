@@ -1,20 +1,15 @@
-import type {
-  LayerId,
-  LayersState,
-  LoopId,
-  MidiLoopRollPlacementMap,
-  MidiRollPlacement,
-} from "../../types/model";
+import { listLayerLoopsOrdered } from "../../lib/layerRuntime";
+import type { LayerId, LayerLoopId, LayersState } from "../../types/layer";
+import type { MidiLoopRollPlacementMap, MidiRollPlacement } from "../../types/midi";
 
-export const LAYERS: LayerId[] = ["A", "B", "C", "D", "E"];
 export const MIDI_LOOP_ROLL_PLACEMENTS: MidiRollPlacement[] = ["both", "1", "2"];
 
 export function getMidiLoopRollPlacement(
   map: MidiLoopRollPlacementMap,
   layerId: LayerId,
-  loopId: LoopId,
+  loopId: LayerLoopId,
 ): MidiRollPlacement {
-  const v = map[layerId][loopId];
+  const v = map[layerId]?.[loopId];
   if (v === "1" || v === "2" || v === "both") {
     return v;
   }
@@ -27,7 +22,7 @@ export function deriveMidiLayerRollMenuFromLoops(
   layerId: LayerId,
 ): MidiRollPlacement | null {
   const layer = layers[layerId];
-  const loops = layer.loops;
+  const loops = listLayerLoopsOrdered(layer);
   if (loops.length === 0) {
     return null;
   }
@@ -60,7 +55,7 @@ export function layerLoopsAgreeOnMidiRollPlacement(
   layerId: LayerId,
 ): boolean {
   const layer = layers[layerId];
-  const loops = layer?.loops ?? [];
+  const loops = layer ? listLayerLoopsOrdered(layer) : [];
   if (loops.length <= 1) {
     return true;
   }

@@ -11,11 +11,15 @@ import {
   compositionLoopBeatLength,
 } from "../../lib/midiPlayhead";
 import { expandBaseNotesToComposition } from "../../lib/midiRollExpand";
-import type { LayerId, LayersState, MidiLoopRollPlacementMap } from "../../types/model";
+import { layerLoopsForUi } from "../../lib/layerRuntime";
+import type { LayerId, LayersState } from "../../types/layer";
+import type { LoopDefinitionsState } from "../../types/loop";
+import type { MidiLoopRollPlacementMap } from "../../types/midi";
 import type { RollSlot } from "./types";
 
 interface MidiRollDataParams {
   layers: LayersState;
+  definitions: LoopDefinitionsState;
   meter: string;
   masterLoopLength: number;
   rootPitchClass: number;
@@ -45,6 +49,7 @@ export interface CombinedNoteEvent {
 
 export function useMidiRollData({
   layers,
+  definitions,
   meter,
   masterLoopLength,
   rootPitchClass,
@@ -60,7 +65,11 @@ export function useMidiRollData({
   const combinedNoteEvents = useMemo<CombinedNoteEvent[]>(() => {
     const out: CombinedNoteEvent[] = [];
     for (const layer of layerIds) {
-      const layerLoops = layers[layer]?.loops ?? [];
+      const layerRow = layers[layer];
+      if (!layerRow) {
+        continue;
+      }
+      const layerLoops = layerLoopsForUi(layerRow, definitions);
       for (let loopIndex = 0; loopIndex < layerLoops.length; loopIndex += 1) {
         const loop = layerLoops[loopIndex];
         if (!loop) {
@@ -85,7 +94,7 @@ export function useMidiRollData({
           );
           for (const expandedNote of expanded) {
             const { _off, ...rest } = expandedNote;
-            const loopId = loop.id;
+            const loopId = loop.loopId;
             const noteOct = expandedNote.octave ?? 3;
             const globalStart = expandedNote.beatIndex + (expandedNote.startInBeat ?? 0);
             const globalEnd = globalStart + (expandedNote.lengthInBeat ?? 1);
@@ -111,7 +120,7 @@ export function useMidiRollData({
       }
     }
     return out;
-  }, [beatLength, beatsPerMeasure, layerIds, layers, rootPitchClass]);
+  }, [beatLength, beatsPerMeasure, definitions, layerIds, layers, rootPitchClass]);
 
   const layerLoopPlacementAgreement = useMemo(() => {
     const out: Partial<Record<LayerId, boolean>> = {};

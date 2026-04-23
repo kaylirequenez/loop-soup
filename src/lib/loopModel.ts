@@ -1,5 +1,6 @@
 import { clampOctaveForPitchClass } from "./keyLayout";
-import type { LayerId, LayerLoop, LoopNote } from "../types/model";
+import type { LayerId, LayerLoopInstanceRow } from "../types/layer";
+import type { LoopNote } from "../types/loop";
 
 /** Must match app composition beat ceiling (extend / master loop length). */
 export const MAX_COMPOSITION_BEATS = 64;
@@ -106,10 +107,13 @@ export function shiftLoopNotesOctaveBy(
   });
 }
 
-export function createDefaultLoop(overrides: Partial<LayerLoop> = {}): LayerLoop {
+export function createDefaultLoop(
+  overrides: Partial<LayerLoopInstanceRow> = {},
+): LayerLoopInstanceRow {
   loopIdSeq += 1;
   return {
-    id: `loop-${loopIdSeq}`,
+    loopId: "1",
+    loopInstanceId: `loop-${loopIdSeq}`,
     startMeasure: 1,
     spanBeats: 1,
     repeatUnit: "measures",
@@ -136,7 +140,10 @@ export function maxRepeatEveryForUnit(
 }
 
 export function repeatEveryForUnit(
-  loop: Pick<LayerLoop, "repeatUnit" | "repeatEveryMeasuresMemory" | "repeatEveryBeatsMemory">,
+  loop: Pick<
+    LayerLoopInstanceRow,
+    "repeatUnit" | "repeatEveryMeasuresMemory" | "repeatEveryBeatsMemory"
+  >,
 ): number | null {
   const unit = normalizeRepeatUnit(loop?.repeatUnit);
   if (unit === "measures") {
@@ -222,7 +229,7 @@ export function clampLoopToComposition(
   loop: RawLoop,
   beatsPerMeasure: number,
   totalMeasures: number,
-): LayerLoop {
+): LayerLoopInstanceRow {
   const bpm = Math.max(1, beatsPerMeasure);
   const tm = Math.max(1, totalMeasures);
   const maxEndMeasure = maxMeasuresCompositionLimit(bpm);
@@ -326,7 +333,8 @@ export function clampLoopToComposition(
   );
 
   return {
-    id: typeof loop.id === "string" ? loop.id : "loop",
+    loopId: "1",
+    loopInstanceId: typeof loop.id === "string" ? loop.id : "loop",
     startMeasure,
     spanBeats,
     repeatUnit,
@@ -341,6 +349,6 @@ export function clampLoopsToMeasures(
   loops: RawLoop[],
   beatsPerMeasure: number,
   totalMeasures: number,
-): LayerLoop[] {
+): LayerLoopInstanceRow[] {
   return loops.map((l) => clampLoopToComposition(l, beatsPerMeasure, totalMeasures));
 }

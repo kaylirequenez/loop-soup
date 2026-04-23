@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { KEY_OPTIONS, matchesKeyQuery, normalizeKeyText } from "../lib/musicKeys";
 import { LOOP_OCTAVE_MAX, LOOP_OCTAVE_MIN } from "../lib/loopModel";
-import type { LayerId } from "../types/model";
+import type { LayerId } from "../types/layer";
 
 const MIN_BPM = 40;
 const MAX_BPM = 240;

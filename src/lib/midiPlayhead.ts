@@ -1,4 +1,4 @@
-import type { LayerState } from "../types/model";
+import type { LayerLoopInstanceRow } from "../types/layer";
 
 /**
  * MIDI roll "now" position: fractional beat index within the shared composition timeline.
@@ -20,17 +20,15 @@ export function compositionLoopBeatLength(
   );
 }
 
-/** Phrase length in beats for the layer's active loop (`loops[].spanBeats`). */
+/** Phrase length in beats for the layer's active loop (denormalized `LayerLoop.spanBeats`). */
 export function layerLoopBeatLength(
-  layer: LayerState,
+  loops: LayerLoopInstanceRow[] | undefined,
+  activeLoopIndex: number,
   beatsPerMeasure: number,
 ): number {
-  const loops = layer?.loops;
-  const ai = Math.max(
-    0,
-    Math.min((loops?.length ?? 1) - 1, layer?.activeLoopIndex ?? 0),
-  );
-  const span = Number(loops?.[ai]?.spanBeats);
+  const list = Array.isArray(loops) && loops.length > 0 ? loops : [];
+  const ai = Math.max(0, Math.min(list.length - 1, activeLoopIndex));
+  const span = Number(list[ai]?.spanBeats);
   return Math.max(
     1,
     Number.isFinite(span) && span > 0 ? span : beatsPerMeasure,

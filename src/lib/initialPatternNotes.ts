@@ -1,5 +1,6 @@
 import { defaultLoopOctaveForLayerId } from "./loopModel";
-import type { LayerId, LoopNote } from "../types/model";
+import type { LayerId } from "../types/layer";
+import type { LoopNote } from "../types/loop";
 
 /**
  * Demo / seed pattern: loop-local beats (same shape as prior MidiRoll BASE_PATTERN_NOTES).

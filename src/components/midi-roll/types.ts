@@ -1,4 +1,4 @@
-import type { LayerId } from "../../types/model";
+import type { LayerId } from "../../types/layer";
 
 export type RollSlot = 1 | 2;
 

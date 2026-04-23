@@ -1,4 +1,4 @@
-import type { LayerId } from "../types/model";
+import type { LayerId } from "../types/layer";
 
 export const LAYER_ORDER: LayerId[] = ["A", "B", "C", "D", "E"];
 

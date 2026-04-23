@@ -1,8 +1,9 @@
-import type { AppView, LayerLoop } from "../../types/model";
+import type { LayerLoopInstanceRow } from "../../types/layer";
+import type { AppView } from "../../types/app";
 
 export function maybeSwitchToMidiForLoopEdit(
   state: { currentView: AppView },
-  loop: LayerLoop | null | undefined,
+  loop: LayerLoopInstanceRow | null | undefined,
 ): { currentView?: AppView } {
   if (state.currentView !== "layers" || !loop) {
     return {};

@@ -1,10 +1,15 @@
 import { useMemo, useRef } from "react";
-import { useAppStore } from "../store/appStore";
+import { useMidiStore } from "../store/midiStore";
+import { useLayerStore } from "../store/layerStore";
+import { useLayerEditorStore } from "../store/layerEditorStore";
+import { useLayerPlaybackStore } from "../store/layerPlaybackStore";
+import { useLoopDefinitionStore } from "../store/loopDefinitionStore";
+import { useTransportStore } from "../store/transportStore";
 import { midiRollOctaveRows, parseKeyRootPitchClass } from "../lib/keyLayout";
 import { readMidiCompositionBeat } from "../lib/midiPlayhead";
 import { buildOverlapHeightStackRects } from "../lib/midiRollLayout";
 import { LAYER_ORDER } from "../lib/layers";
-import type { LayerId } from "../types/model";
+import type { LayerId } from "../types/layer";
 import { MidiRollNote } from "./midi-roll/MidiRollNote";
 import { useMidiPlayheadScrub } from "./midi-roll/useMidiPlayheadScrub";
 import { useMidiRollData } from "./midi-roll/useMidiRollData";
@@ -17,29 +22,32 @@ function unlockDragSelect() {
 }
 
 export default function MidiRoll() {
-  const midiRollCount = useAppStore((s) => s.midiRollCount);
-  const meter = useAppStore((s) => s.meter);
-  const selectedLayer = useAppStore((s) => s.selectedLayer);
-  const layers = useAppStore((s) => s.layers);
-  const isPlaying = useAppStore((s) => s.isPlaying);
-  const setPlaying = useAppStore((s) => s.setPlaying);
-  const midiViewMeasureIndex = useAppStore((s) => s.midiViewMeasureIndex);
-  const midiMeasuresVisible = useAppStore((s) => s.midiMeasuresVisible);
-  const midiPlayheadBeat = useAppStore((s) => s.midiPlayheadBeat);
-  const setMidiPlayheadBeat = useAppStore((s) => s.setMidiPlayheadBeat);
+  const midiRollCount = useMidiStore((s) => s.midiRollCount);
+  const meter = useTransportStore((s) => s.meter);
+  const selectedLayer = useLayerEditorStore((s) => s.selectedLayerId);
+  const layers = useLayerStore((s) => s.layers);
+  const definitions = useLoopDefinitionStore((s) => s.definitions);
+  const manualMutes = useLayerPlaybackStore((s) => s.manualMutes);
+  const isPlaying = useTransportStore((s) => s.isPlaying);
+  const setPlaying = useTransportStore((s) => s.setPlaying);
+  const midiViewMeasureIndex = useMidiStore((s) => s.midiViewMeasureIndex);
+  const midiMeasuresVisible = useMidiStore((s) => s.midiMeasuresVisible);
+  const midiPlayheadBeat = useMidiStore((s) => s.midiPlayheadBeat);
+  const setMidiPlayheadBeat = useMidiStore((s) => s.setMidiPlayheadBeat);
   const scrubResumeRef = useRef(false);
-  const keyName = useAppStore((s) => s.key);
-  const masterLoopLength = useAppStore((s) => s.masterLoopLength);
-  const midiNoteSelection = useAppStore((s) => s.midiNoteSelection);
-  const applyMidiNoteTap = useAppStore((s) => s.applyMidiNoteTap);
-  const midiLoopRollPlacement = useAppStore((s) => s.midiLoopRollPlacement);
-  const midiRollSplitByRootOctave = useAppStore((s) => s.midiRollSplitByRootOctave);
+  const keyName = useTransportStore((s) => s.key);
+  const masterLoopLength = useTransportStore((s) => s.masterLoopLength);
+  const midiNoteSelection = useMidiStore((s) => s.midiNoteSelection);
+  const applyMidiNoteTap = useMidiStore((s) => s.applyMidiNoteTap);
+  const midiLoopRollPlacement = useMidiStore((s) => s.midiLoopRollPlacement);
+  const midiRollSplitByRootOctave = useMidiStore((s) => s.midiRollSplitByRootOctave);
   const rootPitchClass = useMemo(() => parseKeyRootPitchClass(keyName), [keyName]);
-  const octaveView = useAppStore((s) => s.octaveView);
+  const octaveView = useMidiStore((s) => s.octaveView);
   const oneOctaveRows = useMemo(() => midiRollOctaveRows(rootPitchClass), [rootPitchClass]);
   const { beatsPerMeasure, beatLength, combinedNoteEvents, layerLoopPlacementAgreement, isNoteVisibleInMeasure } =
     useMidiRollData({
       layers,
+      definitions,
       meter,
       masterLoopLength,
       rootPitchClass,
@@ -147,7 +155,7 @@ export default function MidiRoll() {
                           inSelectedLayer={inSelectedLayer}
                           inSelectedLoop={Boolean(inSelectedLoop)}
                           dimSameLayerOtherLoop={Boolean(dimSameLayerOtherLoop)}
-                          isMuted={Boolean(layers[layerId]?.muted)}
+                          isMuted={Boolean(manualMutes[layerId])}
                           rollSlot={rollSlot}
                           onTap={applyMidiNoteTap}
                         />

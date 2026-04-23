@@ -1,11 +1,11 @@
-import type { LayerLoop } from "../../types/model";
+import type { LayerLoopInstanceRow } from "../../types/layer";
 
 export interface BottomControlsProps {
   isPlaying: boolean;
   addOn: boolean;
   beatsPerMeasure: number;
   totalMeasures: number;
-  activeLoop: LayerLoop | null;
+  activeLoop: LayerLoopInstanceRow | null;
   repeatPhraseEnabled?: boolean;
   repeatPlacementEnabled?: boolean;
   phraseFieldSyncKey?: string;
