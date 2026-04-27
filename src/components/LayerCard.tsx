@@ -1,8 +1,10 @@
-import { LAYER_COLORS, LAYER_META } from "../lib/layers";
+import { useShallow } from "zustand/react/shallow";
+import { LAYER_COLORS } from "../lib/layerUi";
+import { defaultSoundForLayer } from "../lib/sounds";
 import { useLayerStore } from "../store/layerStore";
+import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerPlaybackStore } from "../store/layerPlaybackStore";
-import type { LayerKnobEffect } from "../types/layer";
-import type { LayerCardProps } from "./layers/types";
+import type { LayerId, LayerKnobEffect } from "../types/layer";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
@@ -42,35 +44,44 @@ const describeArc = (startDeg: number, endDeg: number) => {
   return `M ${startPoint.x} ${startPoint.y} A ${KNOB_ARC_RADIUS} ${KNOB_ARC_RADIUS} 0 ${largeArcFlag} 1 ${endPoint.x} ${endPoint.y}`;
 };
 
-export default function LayerCard({
-  layerId,
-  layer,
-  selected,
-  solo,
-  onSelect,
-  onToggleMute,
-  onToggleSolo,
-}: LayerCardProps) {
-  const setLayerVolume = useLayerStore((s) => s.setLayerVolume);
-  const setLayerKnobValue = useLayerStore((s) => s.setLayerKnobValue);
-  const muted = useLayerPlaybackStore((s) => s.manualMutes[layerId]);
+export default function LayerCard({ layerId }: { layerId: LayerId }) {
+  const layer = useLayerStore((s) => s.layers[layerId]);
+  const { setLayerVolume, setLayerKnobValue, setLoopKnobValue } = useLayerStore(
+    useShallow((s) => ({
+      setLayerVolume: s.setLayerVolume,
+      setLayerKnobValue: s.setLayerKnobValue,
+      setLoopKnobValue: s.setLoopKnobValue,
+    })),
+  );
+  const selected = useLayerEditorStore((s) => s.selectedLayerId === layerId);
+  const onSelect = useLayerEditorStore((s) => s.setSelectedLayerId);
+  const activeLoopId = useLayerEditorStore((s) =>
+    s.selectedLayerId === layerId ? s.selectedLoopId : null,
+  );
+  const { toggleManualMute, toggleLayerSolo, soloLayerId } =
+    useLayerPlaybackStore(
+      useShallow((s) => ({
+        toggleManualMute: s.toggleManualMute,
+        toggleLayerSolo: s.toggleLayerSolo,
+        soloLayerId: s.soloLayerId,
+      })),
+    );
+  const solo = soloLayerId === layerId;
+  const muted = useLayerPlaybackStore((s) => !s.isLayerAudible(layerId));
 
-  const meta = LAYER_META[layerId];
   const color = LAYER_COLORS[layerId];
-  const sound = layer.defaultMapping.soundId ?? meta.sound;
+  const activeLoop = activeLoopId != null ? layer.layerLoops[activeLoopId] : null;
+  const activeMapping = activeLoop ? activeLoop.mapping : layer.defaultMapping;
+  const activeKnobOrder = activeLoop ? activeLoop.knobOrder : layer.knobOrder;
+  const sound = activeMapping.soundId ?? defaultSoundForLayer(layerId);
   const loopCount = Object.keys(layer.layerLoops).length;
   const faderPercent = Math.round(layer.volume * 100);
 
-  const knobDefs = layer.knobOrder
+  const knobDefs = activeKnobOrder
     .map((effect) => {
-      const knob = layer.defaultMapping.knobsByEffect[effect];
+      const knob = activeMapping.knobsByEffect[effect];
       if (!knob) return null;
-
-      return {
-        effect,
-        label: knob.label,
-        value: knob.value,
-      };
+      return { effect, label: knob.label, value: knob.value };
     })
     .filter(Boolean) as Array<{
     effect: LayerKnobEffect;
@@ -101,7 +112,12 @@ export default function LayerCard({
 
       moveEvent.preventDefault();
       const deltaY = startY - moveEvent.clientY;
-      setLayerKnobValue(layerId, effect, startValue + deltaY * 0.012);
+      const newValue = startValue + deltaY * 0.012;
+      if (activeLoopId != null) {
+        setLoopKnobValue(layerId, activeLoopId, effect, newValue);
+      } else {
+        setLayerKnobValue(layerId, effect, newValue);
+      }
     };
 
     const onEnd = () => {
@@ -140,7 +156,7 @@ export default function LayerCard({
     >
       <div className="lc-top">
         <span className="lc-name" style={{ color }}>
-          {`${layerId} — ${meta.role}`}
+          {`${layerId} — ${layer.role}`}
         </span>
         <div className="pills">
           <span className="pill pill-snd">{sound}</span>
@@ -230,7 +246,7 @@ export default function LayerCard({
               className={`mute-btn ${muted ? "mute-btn-on" : ""}`}
               onClick={(event) => {
                 event.stopPropagation();
-                onToggleMute(layerId);
+                toggleManualMute(layerId);
               }}
               aria-label={`mute layer ${layerId}`}
             >
@@ -240,7 +256,7 @@ export default function LayerCard({
               className={`mute-btn ${solo ? "solo-btn-on" : ""}`}
               onClick={(event) => {
                 event.stopPropagation();
-                onToggleSolo(layerId);
+                toggleLayerSolo(layerId);
               }}
               aria-label={`solo layer ${layerId}`}
             >

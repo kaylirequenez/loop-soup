@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { maxMeasuresCompositionLimit } from "../utils/compositionState";
+import { oneBasedRange } from "../utils";
+import { snapPlayheadToView } from "../utils/midiTransport";
 import {
-  isRepeatDisabled,
-  loopNotesCanShiftOctave,
-  maxMeasuresCompositionLimit,
+  getRepeatEveryForUnit,
+  isRepeatDisabledForUnit,
   maxRepeatEveryForUnit,
-  normalizeRepeatUnit,
-  repeatEveryForUnit,
-} from "../lib/loopModel";
-import { oneBasedRange } from "../lib/range";
-import type { BottomControlsProps } from "./bottom-controls/types";
+  canShiftLoopNotesOctaveBy,
+} from "../utils/layerState";
+import { useLayerStore } from "../store/layerStore";
+import { useLayerEditorStore } from "../store/layerEditorStore";
+import { useMidiStore } from "../store/midiStore";
+import { useCompositionStore } from "../store/compositionStore";
+import { useTransportStore } from "../store/transportStore";
 
-const MAX_MEASURE_REPEAT_OPTION = 4;
 const RESTART_BAR = { x: 2, y: 6.5, w: 2, h: 11, rx: 0.4 };
 const RESTART_BAR_RIGHT = RESTART_BAR.x + RESTART_BAR.w;
 const RESTART_DOUBLE_CHEVRON_LEFT = `M ${RESTART_BAR_RIGHT} 12 L 9 6.5 L 9 17.5 Z M 9 12 L 14 6.5 L 14 17.5 Z`;
@@ -54,152 +57,131 @@ function IconRestartView() {
   );
 }
 
-function clampInt(n: string | number, min: number, max: number) {
-  const x = Math.floor(Number(n));
-  if (!Number.isFinite(x)) return min;
-  return Math.min(Math.max(x, min), max);
-}
-
-export default function BottomControls({
-  isPlaying,
-  addOn,
-  beatsPerMeasure,
-  totalMeasures,
-  activeLoop,
-  repeatPhraseEnabled = true,
-  repeatPlacementEnabled = true,
-  phraseFieldSyncKey = "",
-  onTogglePlay,
-  onRestartTransport,
-  onRestartPlayheadInView,
-  onToggleAdd,
-  onShiftLoopNotesOctave,
-  onAddMeasure,
-  onRemoveLastMeasure,
-  canRemoveLastMeasure,
-  onSetRepeatUnit,
-  onToggleRepeatEvery,
-  onSetStartMeasure,
-  onSetRepeatEndMeasure,
-}: BottomControlsProps) {
-  const spanBeats = Math.max(1, Number(activeLoop?.spanBeats) || 1);
-  const startMeasure = Math.max(1, Number(activeLoop?.startMeasure) || 1);
-  const repeatUnit = normalizeRepeatUnit(activeLoop?.repeatUnit);
-  const repeatEvery = repeatEveryForUnit(
-    activeLoop ?? {
-      repeatUnit: "measures",
-      repeatEveryMeasuresMemory: null,
-      repeatEveryBeatsMemory: null,
-    },
+export default function BottomControls() {
+  const { isPlaying, addOn, togglePlaying, toggleAddOn, bumpTransportNonce } =
+    useTransportStore(
+      useShallow((s) => ({
+        isPlaying: s.isPlaying,
+        addOn: s.addOn,
+        togglePlaying: s.togglePlaying,
+        toggleAddOn: s.toggleAddOn,
+        bumpTransportNonce: s.bumpTransportNonce,
+      })),
+    );
+  const { meter, totalMeasures, setTotalMeasures } = useCompositionStore(
+    useShallow((s) => ({
+      meter: s.meter,
+      totalMeasures: s.totalMeasures,
+      setTotalMeasures: s.setTotalMeasures,
+    })),
   );
-  const repeatEndMeasure = activeLoop?.repeatEndMeasure ?? null;
-  const [startMeasureDraft, setStartMeasureDraft] = useState(() =>
-    String(startMeasure),
+  const { selectedLayerId, selectedLoopId, selectedInstanceId } =
+    useLayerEditorStore(
+      useShallow((s) => ({
+        selectedLayerId: s.selectedLayerId,
+        selectedLoopId: s.selectedLoopId,
+        selectedInstanceId: s.selectedInstanceId,
+      })),
+    );
+  const {
+    layers,
+    shiftLoopNotesOctave,
+    setLoopInstanceRepeatUnit,
+    toggleLoopInstanceRepeatEvery,
+  } = useLayerStore(
+    useShallow((s) => ({
+      layers: s.layers,
+      shiftLoopNotesOctave: s.shiftLoopNotesOctave,
+      setLoopInstanceRepeatUnit: s.setLoopInstanceRepeatUnit,
+      toggleLoopInstanceRepeatEvery: s.toggleLoopInstanceRepeatEvery,
+    })),
   );
-  const [endMeasureDraft, setEndMeasureDraft] = useState(() =>
-    repeatEndMeasure == null ? "" : String(repeatEndMeasure),
+  const {
+    midiMeasuresVisible,
+    midiViewMeasureIndex,
+    setMidiPlayheadBeat,
+    setMidiViewMeasureIndex,
+  } = useMidiStore(
+    useShallow((s) => ({
+      midiMeasuresVisible: s.midiMeasuresVisible,
+      midiViewMeasureIndex: s.midiViewMeasureIndex,
+      setMidiPlayheadBeat: s.setMidiPlayheadBeat,
+      setMidiViewMeasureIndex: s.setMidiViewMeasureIndex,
+    })),
   );
-  const [endMeasureError, setEndMeasureError] = useState("");
 
-  useEffect(
-    () => setStartMeasureDraft(String(startMeasure)),
-    [phraseFieldSyncKey, startMeasure],
-  );
-  useEffect(
-    () =>
-      setEndMeasureDraft(
-        repeatEndMeasure == null ? "" : String(repeatEndMeasure),
-      ),
-    [phraseFieldSyncKey, repeatEndMeasure, repeatEvery, repeatUnit],
-  );
-  useEffect(() => {
-    if (!endMeasureError) return undefined;
-    const timeoutId = window.setTimeout(() => setEndMeasureError(""), 2500);
-    return () => window.clearTimeout(timeoutId);
-  }, [endMeasureError]);
+  const activeLoop =
+    selectedLoopId != null
+      ? {
+          loop: layers[selectedLayerId].layerLoops[selectedLoopId],
+          instance:
+            selectedInstanceId != null
+              ? layers[selectedLayerId].layerLoops[selectedLoopId]
+                  .loopInstances[selectedInstanceId]
+              : null,
+        }
+      : null;
 
-  const maxBeatRepeatOption = Math.max(0, beatsPerMeasure - 1);
-  const commitStartMeasure = () => {
-    const t = startMeasureDraft.trim();
-    if (t === "") {
-      onSetStartMeasure(1);
-      setStartMeasureDraft("1");
-      return;
-    }
-    const v = clampInt(t, 1, totalMeasures);
-    onSetStartMeasure(v);
-    setStartMeasureDraft(String(v));
-  };
+  const instanceEnabled = selectedInstanceId != null;
+  const loopEnabled = selectedLoopId != null;
+  const canRemoveLastMeasure = totalMeasures >= 2;
+  const canAddMeasure =
+    totalMeasures < maxMeasuresCompositionLimit(meter.beatsPerMeasure);
+  const spanBeats = activeLoop?.loop.definition.spanBeats ?? 1;
+  const repeatUnit = activeLoop?.instance?.repeatUnit ?? "measures";
+  const repeatEvery = activeLoop?.instance
+    ? getRepeatEveryForUnit(repeatUnit, activeLoop.instance)
+    : null;
 
-  const commitEndMeasure = () => {
-    if (repeatUnit !== "measures" || repeatEvery == null) return;
-    const t = endMeasureDraft.trim();
-    if (t === "") {
-      onSetRepeatEndMeasure(null);
-      setEndMeasureDraft("");
-      setEndMeasureError("");
-      return;
-    }
-    const maxCap = maxMeasuresCompositionLimit(beatsPerMeasure);
-    const parsedRaw = Number.parseInt(t, 10);
-    if (!Number.isFinite(parsedRaw)) {
-      setEndMeasureDraft(
-        repeatEndMeasure == null ? "" : String(repeatEndMeasure),
-      );
-      return;
-    }
-    const minEnd = startMeasure + 1;
-    const v = Math.min(Math.max(parsedRaw, minEnd), maxCap);
-    if (parsedRaw > maxCap) {
-      onSetRepeatEndMeasure(v);
-      setEndMeasureDraft(String(v));
-      setEndMeasureError(
-        `End measure must be at most ${maxCap} (composition limit).`,
-      );
-      return;
-    }
-    setEndMeasureError("");
-    onSetRepeatEndMeasure(v);
-    setEndMeasureDraft(String(v));
-  };
-
-  const loopNotes = activeLoop?.notes ?? [];
+  const loopNotes = activeLoop?.loop.definition.notes ?? [];
   const canTransposeDown =
-    repeatPhraseEnabled && loopNotesCanShiftOctave(loopNotes, -1);
-  const canTransposeUp =
-    repeatPhraseEnabled && loopNotesCanShiftOctave(loopNotes, 1);
+    loopEnabled && canShiftLoopNotesOctaveBy(loopNotes, -1);
+  const canTransposeUp = loopEnabled && canShiftLoopNotesOctaveBy(loopNotes, 1);
+
+  const handleRestartFromStart = () => {
+    bumpTransportNonce();
+    setMidiPlayheadBeat(0);
+    setMidiViewMeasureIndex(0);
+  };
+
+  const handleSnapPlayhead = () => snapPlayheadToView(midiViewMeasureIndex);
+
+  const handleAddMeasure = () => {
+    const newTotal = totalMeasures + 1;
+    setTotalMeasures(newTotal);
+    const vis = Math.min(midiMeasuresVisible, newTotal);
+    setMidiViewMeasureIndex(Math.max(0, newTotal - vis));
+  };
 
   return (
     <div className="bottom">
       <div className="bottom-bar">
-        {/* existing markup retained */}
-        {/* transport */}
         <div className="cluster">
           <div className="clbl2">transport</div>
           <div className="ctrls">
             <button
               className={`btn-play ${isPlaying ? "btn-play-on" : ""}`}
-              onClick={onTogglePlay}
+              onClick={togglePlaying}
             >
               {isPlaying ? "⏸" : "▶"}
             </button>
             <button
               type="button"
               className="btn-restart"
-              onClick={onRestartTransport}
+              onClick={handleRestartFromStart}
             >
               <IconRestartComposition />
             </button>
             <button
               type="button"
               className="btn-restart"
-              onClick={onRestartPlayheadInView}
+              onClick={handleSnapPlayhead}
             >
               <IconRestartView />
             </button>
             <button
               className={`btn-add ${addOn ? "btn-add-on" : ""}`}
-              onClick={onToggleAdd}
+              onClick={toggleAddOn}
             >
               +
             </button>
@@ -209,13 +191,20 @@ export default function BottomControls({
         <div className="cluster">
           <div className="clbl2">extend</div>
           <div className="ctrls ctrls-extend">
-            <button type="button" className="btn" onClick={onAddMeasure}>
+            <button
+              type="button"
+              className="btn"
+              disabled={!canAddMeasure}
+              onClick={handleAddMeasure}
+            >
               + measure
             </button>
             <button
               type="button"
               className="btn"
-              onClick={onRemoveLastMeasure}
+              onClick={() => {
+                if (canRemoveLastMeasure) setTotalMeasures(totalMeasures - 1);
+              }}
               disabled={!canRemoveLastMeasure}
             >
               - measure
@@ -225,51 +214,7 @@ export default function BottomControls({
         <div className="sep" />
         <div className="cluster cluster-repeat cluster-repeat-split">
           <div
-            className={`repeat-split-col ${!repeatPlacementEnabled ? "cluster-repeat--locked" : ""}`}
-          >
-            <div className="clbl2">placement</div>
-            <div className="repeat-meta placement-measures-row repeat-split-values">
-              <label className="repeat-field">
-                <span className="repeat-field-lbl">Starts measure</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="repeat-num"
-                  value={startMeasureDraft}
-                  disabled={!repeatPlacementEnabled}
-                  onChange={(e) => setStartMeasureDraft(e.target.value)}
-                  onBlur={commitStartMeasure}
-                />
-              </label>
-              <label
-                className={`repeat-field repeat-field--error-anchor ${repeatUnit !== "measures" || repeatEvery == null ? "repeat-field--inactive" : ""}`}
-              >
-                {endMeasureError ? (
-                  <div className="stat-error">{endMeasureError}</div>
-                ) : null}
-                <span className="repeat-field-lbl">Ends measure</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  className="repeat-num"
-                  value={endMeasureDraft}
-                  disabled={
-                    !repeatPlacementEnabled ||
-                    repeatUnit !== "measures" ||
-                    repeatEvery == null
-                  }
-                  onChange={(e) => {
-                    setEndMeasureDraft(e.target.value);
-                    setEndMeasureError("");
-                  }}
-                  onBlur={commitEndMeasure}
-                />
-              </label>
-            </div>
-          </div>
-          <div className="sep" />
-          <div
-            className={`repeat-split-col ${!repeatPlacementEnabled ? "cluster-repeat--locked" : ""}`}
+            className={`repeat-split-col ${!instanceEnabled ? "cluster-repeat--locked" : ""}`}
           >
             <div className="repeat-header-inline">
               <div className="clbl2">repeat every n</div>
@@ -279,8 +224,18 @@ export default function BottomControls({
                     key={`u-${value}`}
                     type="button"
                     className={`rep-btn ${repeatUnit === value ? "rep-on" : ""}`}
-                    disabled={!repeatPlacementEnabled}
-                    onClick={() => onSetRepeatUnit(value)}
+                    disabled={!instanceEnabled}
+                    onClick={() => {
+                      if (activeLoop?.instance) {
+                        setLoopInstanceRepeatUnit(
+                          selectedLayerId,
+                          activeLoop.loop.id,
+                          activeLoop.instance.id,
+                          value as "measures" | "beats",
+                          meter.beatsPerMeasure,
+                        );
+                      }
+                    }}
                   >
                     {value}
                   </button>
@@ -291,26 +246,33 @@ export default function BottomControls({
               <div className="repeat-sub">
                 <div className="ctrls ctrls-wrap repeat-split-values">
                   {oneBasedRange(
-                    repeatUnit === "measures"
-                      ? MAX_MEASURE_REPEAT_OPTION
-                      : maxBeatRepeatOption,
+                    maxRepeatEveryForUnit(repeatUnit, meter.beatsPerMeasure),
                   ).map((n) => {
                     const disabled =
-                      !repeatPlacementEnabled ||
-                      isRepeatDisabled(
+                      !instanceEnabled ||
+                      isRepeatDisabledForUnit(
                         spanBeats,
-                        beatsPerMeasure,
+                        meter.beatsPerMeasure,
                         repeatUnit,
                         n,
-                      ) ||
-                      n > maxRepeatEveryForUnit(repeatUnit, beatsPerMeasure);
+                      );
                     return (
                       <button
                         key={`r-${repeatUnit}-${n}`}
                         type="button"
                         className={`rep-btn ${repeatEvery === n ? "rep-on" : ""}`}
                         disabled={disabled}
-                        onClick={() => onToggleRepeatEvery(n)}
+                        onClick={() => {
+                          if (activeLoop?.instance) {
+                            toggleLoopInstanceRepeatEvery(
+                              selectedLayerId,
+                              activeLoop.loop.id,
+                              activeLoop.instance.id,
+                              n,
+                              meter.beatsPerMeasure,
+                            );
+                          }
+                        }}
                       >
                         {n}
                       </button>
@@ -325,14 +287,22 @@ export default function BottomControls({
             <div className="clbl2">octave</div>
             <div className="transpose-block repeat-split-values">
               <div
-                className={`transpose-row ${!repeatPhraseEnabled ? "cluster-repeat--locked" : ""}`}
+                className={`transpose-row ${!loopEnabled ? "cluster-repeat--locked" : ""}`}
               >
                 <div className="ctrls ctrls-oct">
                   <button
                     type="button"
                     className="btn"
                     disabled={!canTransposeDown}
-                    onClick={() => onShiftLoopNotesOctave(-1)}
+                    onClick={() => {
+                      if (selectedLoopId) {
+                        shiftLoopNotesOctave(
+                          selectedLayerId,
+                          selectedLoopId,
+                          -1,
+                        );
+                      }
+                    }}
                   >
                     -
                   </button>
@@ -340,7 +310,15 @@ export default function BottomControls({
                     type="button"
                     className="btn"
                     disabled={!canTransposeUp}
-                    onClick={() => onShiftLoopNotesOctave(1)}
+                    onClick={() => {
+                      if (selectedLoopId) {
+                        shiftLoopNotesOctave(
+                          selectedLayerId,
+                          selectedLoopId,
+                          1,
+                        );
+                      }
+                    }}
                   >
                     +
                   </button>

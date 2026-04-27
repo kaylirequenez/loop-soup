@@ -76,7 +76,7 @@ export const useAppStore = create((set, get) => ({
   extendOn: false,
   currentLoop: 0,
   totalLoops: 4,
-  masterLoopLength: null, // bars
+  totalMeasures: null, // bars
   bpm: 128,
   key: null, // e.g. 'A minor'
   meter: "4/4",
@@ -133,7 +133,7 @@ export const useAppStore = create((set, get) => ({
     })),
 
   setSessionInfo: (bpm, key, meter, loopLength) =>
-    set({ bpm, key, meter, masterLoopLength: loopLength }),
+    set({ bpm, key, meter, totalMeasures: loopLength }),
 }));
 ```
 
@@ -565,7 +565,7 @@ Create `src/hooks/useLoopEngine.js`. This is the most complex hook.
 // use Tone.Transport.scheduleRepeat to fire at every loop boundary
 Tone.Transport.scheduleRepeat((time) => {
   onLoopBoundary(time);
-}, masterLoopLength + "m"); // masterLoopLength in bars, 'm' = measures
+}, totalMeasures + "m"); // totalMeasures in bars, 'm' = measures
 
 function onLoopBoundary(time) {
   const store = useAppStore.getState();

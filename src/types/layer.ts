@@ -1,12 +1,11 @@
-import type { LoopDefinitionId, LoopInstanceId, LoopNote } from "./loop";
-
 export type LayerId = "A" | "B" | "C" | "D" | "E";
-export type LayerLoopId = string;
-
-/** @deprecated Prefer `LayerLoopId`; kept for gradual renames in MIDI helpers. */
-export type LoopId = LayerLoopId;
+export const LAYER_IDS: LayerId[] = ["A", "B", "C", "D", "E"];
+export type LayerLoopId = number;
+export type LoopInstanceId = number;
 
 export type LayerKnobEffect = "filter" | "reverb";
+
+export type RepeatUnit = "measures" | "beats";
 
 export interface LayerKnob {
   value: number;
@@ -20,50 +19,52 @@ export interface SoundMapping {
   knobsByEffect: LayerKnobsByEffect;
 }
 
-/** Placed instance row (placement/repeat only). Mapping + definition are owned by LayerLoop. */
+export interface LoopNote {
+  pitchClass: number;
+  octave: number;
+  /** Integer beat offset from loop definition beat 0. */
+  beatIndex: number;
+  /** Sub-beat offset within that beat; in [0, 1). */
+  startInBeat: number;
+  lengthInBeat: number;
+}
+
+/** Placed instance row (placement/repeat only). Definition and mapping are owned by LayerLoop. */
 export interface LayerLoopInstance {
   id: LoopInstanceId;
-  startMeasure: number;
-  repeatUnit: "measures" | "beats";
+  /** 0-indexed beat in the composition at which this instance starts. */
+  startBeat: number;
+  repeatUnit: RepeatUnit;
   repeatEveryMeasuresMemory: number | null;
   repeatEveryBeatsMemory: number | null;
-  repeatEndMeasure: number | null;
+  /** Exclusive end beat for repeats; repeats stop before reaching this beat. */
+  repeatEndBeat: number | null;
 }
 
-/**
- * Numbered layer loop (owns mapping + one shared loop definition + ordered instances).
- */
-export interface LayerLoop {
-  id: LayerLoopId;
-  loopDefinitionId: LoopDefinitionId;
-  mapping: SoundMapping;
-  knobOrder: LayerKnobEffect[];
-  /** Ordered map: insertion order reflects loop timeline ordering for this loop's instances. */
-  loopInstances: Record<LoopInstanceId, LayerLoopInstance>;
-}
-
-/**
- * Denormalized row used by timeline/repeat/MIDI math when operating on one placed instance.
- * This is derived runtime data; not persisted.
- */
-export interface LayerLoopInstanceRow {
-  loopId: LayerLoopId;
-  loopInstanceId: LoopInstanceId;
-  startMeasure: number;
-  repeatUnit: "measures" | "beats";
-  repeatEveryMeasuresMemory: number | null;
-  repeatEveryBeatsMemory: number | null;
-  repeatEndMeasure: number | null;
+/** Musical content shared across all instances of this loop. */
+export interface LoopDefinition {
   spanBeats: number;
   notes: LoopNote[];
 }
 
+/**
+ * Numbered layer loop (owns definition + mapping + ordered instances).
+ */
+export interface LayerLoop {
+  id: LayerLoopId;
+  definition: LoopDefinition;
+  mapping: SoundMapping;
+  knobOrder: LayerKnobEffect[];
+  /** Instances keyed by id; sort by startBeat for timeline order. */
+  loopInstances: Record<LoopInstanceId, LayerLoopInstance>;
+}
+
 export interface Layer {
+  role: string;
   /** Layer output fader (0–1), separate from sound mapping. */
   volume: number;
   defaultMapping: SoundMapping;
   knobOrder: LayerKnobEffect[];
-  /** Numbered loops keyed by loop id. */
   layerLoops: Record<LayerLoopId, LayerLoop>;
 }
 

@@ -1,119 +1,96 @@
-import { useCallback } from "react";
-import type { MutableRefObject, PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useRef } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { useMidiStore } from "../../store/midiStore";
+import { useTransportStore } from "../../store/transportStore";
+import { useCompositionStore } from "../../store/compositionStore";
+import { compositionLoopBeatLength } from "../../utils/compositionState";
 
-interface UseMidiPlayheadScrubParams {
-  isPlaying: boolean;
-  setPlaying: (value: boolean) => void;
-  setMidiPlayheadBeat: (value: number) => void;
-  lockDragSelect: () => void;
-  unlockDragSelect: () => void;
-  scrubResumeRef: MutableRefObject<boolean>;
-  beatsPerMeasure: number;
-  beatLength: number;
-  midiViewMeasureIndex: number;
-  visibleMeasureCount: number;
-  measureCount: number;
-}
+export function useMidiPlayheadScrub() {
+  const scrubResumeRef = useRef(false);
 
-export function useMidiPlayheadScrub({
-  isPlaying,
-  setPlaying,
-  setMidiPlayheadBeat,
-  lockDragSelect,
-  unlockDragSelect,
-  scrubResumeRef,
-  beatsPerMeasure,
-  beatLength,
-  midiViewMeasureIndex,
-  visibleMeasureCount,
-  measureCount,
-}: UseMidiPlayheadScrubParams) {
-  return useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      event.stopPropagation();
-      event.preventDefault();
-      lockDragSelect();
-      const rollEl = event.currentTarget.parentElement;
-      if (!rollEl?.classList.contains("combined-roll")) {
-        unlockDragSelect();
-        return;
-      }
-      const vpEl = rollEl.closest(".midi-roll-viewport");
-      if (!(vpEl instanceof HTMLElement)) {
-        unlockDragSelect();
-        return;
-      }
-      if (isPlaying) {
-        scrubResumeRef.current = true;
-        setPlaying(false);
+  return useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    event.preventDefault();
+    document.body.classList.add("drag-selection-lock");
+
+    const rollEl = event.currentTarget.parentElement;
+    if (!rollEl?.classList.contains("combined-roll")) {
+      document.body.classList.remove("drag-selection-lock");
+      return;
+    }
+    const vpEl = rollEl.closest(".midi-roll-viewport");
+    if (!(vpEl instanceof HTMLElement)) {
+      document.body.classList.remove("drag-selection-lock");
+      return;
+    }
+
+    const { isPlaying, setPlaying } = useTransportStore.getState();
+    if (isPlaying) {
+      scrubResumeRef.current = true;
+      setPlaying(false);
+    } else {
+      scrubResumeRef.current = false;
+    }
+
+    const apply = (clientX: number) => {
+      const { midiViewMeasureIndex, midiMeasuresVisible, setMidiPlayheadBeat } =
+        useMidiStore.getState();
+      const { meter, totalMeasures } = useCompositionStore.getState();
+      const beatsPerMeasure = meter.beatsPerMeasure;
+      const beatLength = compositionLoopBeatLength(totalMeasures, beatsPerMeasure);
+      const measureCount = Math.max(1, Math.ceil(beatLength / beatsPerMeasure));
+      const visibleMeasureCount = Math.max(
+        1,
+        Math.min(midiMeasuresVisible, measureCount, 4),
+      );
+
+      const domRect = vpEl.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (clientX - domRect.left) / domRect.width));
+      const startBeat = midiViewMeasureIndex * beatsPerMeasure;
+      const rightExclusive = Math.min(
+        beatLength,
+        (midiViewMeasureIndex + visibleMeasureCount) * beatsPerMeasure,
+      );
+      const span = rightExclusive - startBeat;
+      if (span <= 0) return;
+
+      let beat = startBeat + frac * span;
+      const lastMeasureInView = Math.min(
+        measureCount - 1,
+        midiViewMeasureIndex + visibleMeasureCount - 1,
+      );
+      if (lastMeasureInView >= measureCount - 1) {
+        beat = Math.min(beat, beatLength - 1e-6);
       } else {
-        scrubResumeRef.current = false;
+        beat = Math.min(beat, rightExclusive - 1e-6);
       }
-      const scrubEdgeEpsilon = 1e-6;
-      const apply = (clientX: number) => {
-        const rect = vpEl.getBoundingClientRect();
-        const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        const startBeat = midiViewMeasureIndex * beatsPerMeasure;
-        const rightExclusive = Math.min(
-          beatLength,
-          (midiViewMeasureIndex + visibleMeasureCount) * beatsPerMeasure,
-        );
-        const span = rightExclusive - startBeat;
-        if (span <= 0) {
-          return;
-        }
-        let beat = startBeat + frac * span;
-        const lastMeasureInView = Math.min(
-          measureCount - 1,
-          midiViewMeasureIndex + visibleMeasureCount - 1,
-        );
-        const scrubToLoopEnd = lastMeasureInView >= measureCount - 1;
-        if (scrubToLoopEnd) {
-          beat = Math.min(beat, beatLength - scrubEdgeEpsilon);
-        } else {
-          beat = Math.min(beat, rightExclusive - scrubEdgeEpsilon);
-        }
-        setMidiPlayheadBeat(Math.max(0, beat));
-      };
+      setMidiPlayheadBeat(Math.max(0, beat));
+    };
 
-      apply(event.clientX);
-      vpEl.setPointerCapture(event.pointerId);
+    apply(event.clientX);
+    vpEl.setPointerCapture(event.pointerId);
 
-      const onMove = (moveEvent: PointerEvent) => {
-        moveEvent.preventDefault();
-        apply(moveEvent.clientX);
-      };
-      const onUp = () => {
-        unlockDragSelect();
-        try {
-          vpEl.releasePointerCapture(event.pointerId);
-        } catch {
-          /* ignore */
-        }
-        vpEl.removeEventListener("pointermove", onMove);
-        vpEl.removeEventListener("pointerup", onUp);
-        vpEl.removeEventListener("pointercancel", onUp);
-        if (scrubResumeRef.current) {
-          scrubResumeRef.current = false;
-          setPlaying(true);
-        }
-      };
-      vpEl.addEventListener("pointermove", onMove);
-      vpEl.addEventListener("pointerup", onUp);
-      vpEl.addEventListener("pointercancel", onUp);
-    },
-    [
-      beatLength,
-      beatsPerMeasure,
-      isPlaying,
-      lockDragSelect,
-      measureCount,
-      midiViewMeasureIndex,
-      scrubResumeRef,
-      setMidiPlayheadBeat,
-      setPlaying,
-      unlockDragSelect,
-      visibleMeasureCount,
-    ],
-  );
+    const onMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      apply(moveEvent.clientX);
+    };
+    const onUp = () => {
+      document.body.classList.remove("drag-selection-lock");
+      try {
+        vpEl.releasePointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+      vpEl.removeEventListener("pointermove", onMove);
+      vpEl.removeEventListener("pointerup", onUp);
+      vpEl.removeEventListener("pointercancel", onUp);
+      if (scrubResumeRef.current) {
+        scrubResumeRef.current = false;
+        useTransportStore.getState().setPlaying(true);
+      }
+    };
+    vpEl.addEventListener("pointermove", onMove);
+    vpEl.addEventListener("pointerup", onUp);
+    vpEl.addEventListener("pointercancel", onUp);
+  }, []);
 }

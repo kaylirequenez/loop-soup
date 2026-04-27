@@ -832,45 +832,73 @@ body.drag-selection-lock * {
 
 .comp-zone {
   --comp-roll-pick-col: 50px;
-  --comp-edit-col: 38px;
+  --comp-label-col: 44px;
+  --comp-gap: 5px;
   background: var(--surf-lowest);
   padding: 7px 9px;
   flex-shrink: 0;
   width: 100%;
   border-top: 0.5px solid rgba(0, 219, 231, 0.1);
-}
-.comp-hdr {
-  font-size: 9px;
-  color: var(--on-surf-var);
-  margin-bottom: 5px;
+  position: relative;
   display: grid;
-  grid-template-columns: 18px 1fr;
-  gap: 5px;
-  align-items: end;
-  min-height: 2.1em;
+  grid-template-columns: var(--comp-label-col) 1fr;
+  column-gap: var(--comp-gap);
+  row-gap: 3px;
+  align-items: center;
 }
-.comp-hdr--roll-pick {
-  grid-template-columns: 18px 1fr var(--comp-roll-pick-col);
+.comp-zone--roll-pick {
+  grid-template-columns: var(--comp-label-col) 1fr var(--comp-roll-pick-col);
 }
-.comp-hdr-spacer {
-  width: 18px;
-  min-height: 1px;
-}
-.comp-hdr-track-band {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-}
-.comp-hdr-layer {
+.comp-layer-lbl {
+  font-size: 9px;
   font-weight: 600;
-  flex-shrink: 0;
+  color: var(--on-surf-var);
+  white-space: nowrap;
+  align-self: center;
 }
-.comp-hdr-loop-of {
-  flex-shrink: 0;
-  text-align: right;
+.comp-ruler-track {
+  position: relative;
+  height: 26px;
+  background: rgba(13, 3, 24, 0.6);
+  border-radius: 4px;
+  border: 0.5px solid rgba(155, 138, 180, 0.2);
+  overflow: hidden;
+  cursor: col-resize;
+  user-select: none;
+}
+.comp-ruler-measure {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  border-left: 1px solid rgba(155, 138, 180, 0.3);
+}
+.comp-ruler-measure-num {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  font-size: 8px;
   font-variant-numeric: tabular-nums;
+  color: rgba(155, 138, 180, 0.65);
+  line-height: 1;
+  pointer-events: none;
+}
+.comp-ruler-beat-tick {
+  position: absolute;
+  top: 40%;
+  bottom: 0;
+  width: 1px;
+  background: rgba(155, 138, 180, 0.18);
+}
+.comp-ruler-loop-of {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 8px;
+  color: rgba(155, 138, 180, 0.55);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
 }
 .comp-hdr-midi-roll-label {
   font-size: 7px;
@@ -881,64 +909,19 @@ body.drag-selection-lock * {
   opacity: 0.72;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding-bottom: 1px;
-}
-.comp-rows {
-  --comp-row-height: 14px;
-  max-height: calc(var(--visible-comp-rows, 1) * (var(--comp-row-height) + 4px));
-  overflow-y: auto;
-  padding-right: 1px;
-  position: relative;
-}
-.comp-rows--roll-pick .comp-nowbar-wrap {
-  right: calc(var(--comp-edit-col) + var(--comp-roll-pick-col) + 6px);
+  align-self: center;
 }
 .comp-nowbar-wrap {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 23px;
-  right: calc(var(--comp-edit-col) + 1px);
+  top: 7px;
+  bottom: 7px;
+  left: calc(9px + var(--comp-label-col) + var(--comp-gap));
+  right: 9px;
   z-index: 4;
   pointer-events: none;
 }
-.crow {
-  display: grid;
-  grid-template-columns: 18px 1fr var(--comp-edit-col);
-  gap: 5px;
-  align-items: center;
-  margin-bottom: 4px;
-}
-.crow--roll-pick {
-  grid-template-columns: 18px 1fr var(--comp-edit-col) var(--comp-roll-pick-col);
-}
-.comp-loop-edit-btn {
-  box-sizing: border-box;
-  min-width: var(--comp-edit-col);
-  height: calc(var(--comp-row-height) + 2px);
-  padding: 0 4px;
-  border-radius: 4px;
-  border: 0.5px solid rgba(155, 138, 180, 0.45);
-  background: rgba(22, 12, 36, 0.95);
-  color: var(--on-surf-var);
-  font-size: 8px;
-  font-weight: 700;
-  text-transform: lowercase;
-  cursor: pointer;
-  line-height: 1;
-}
-.comp-loop-edit-btn:hover:not(:disabled) {
-  border-color: rgba(0, 219, 231, 0.35);
-  color: var(--on-surf-high);
-}
-.comp-loop-edit-btn:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-}
-.comp-loop-edit-btn--on {
-  border-color: rgba(0, 219, 231, 0.55);
-  background: rgba(0, 219, 231, 0.12);
-  color: var(--primary);
+.comp-zone--roll-pick .comp-nowbar-wrap {
+  right: calc(9px + var(--comp-roll-pick-col) + var(--comp-gap));
 }
 .comp-roll-placement {
   display: flex;
@@ -1049,6 +1032,20 @@ body.drag-selection-lock * {
   border-radius: 3px;
   opacity: 0.55;
   z-index: 2;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.cblock--instance-selected {
+  opacity: 0.9;
+  box-shadow: 0 0 0 1.5px rgba(0, 219, 231, 0.75);
+}
+.cblock--instance-unselected {
+  opacity: 0.38;
+  filter: saturate(0.7);
+}
+.comp-nowbar--ruler {
+  pointer-events: none;
 }
 .comp-nowbar {
   position: absolute;
@@ -1889,6 +1886,20 @@ body.drag-selection-lock * {
   gap: 2px;
   font-size: 8px;
   color: var(--on-surf-var);
+}
+.repeat-field-pair {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: flex-end;
+}
+.repeat-field-sub-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.repeat-field-pair .repeat-num {
+  width: 28px;
 }
 .repeat-field--inline-end {
   flex: 0 0 auto;

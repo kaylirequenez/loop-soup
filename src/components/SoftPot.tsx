@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { useMidiStore } from "../store/midiStore";
-import { useTransportStore } from "../store/transportStore";
-import { softpotChromoRows } from "../lib/keyLayout";
-import type { LayerId } from "../types/layer";
+import { useShallow } from "zustand/react/shallow";
+import { useCompositionStore } from "../store/compositionStore";
+import { softpotChromoRows } from "../utils/pitch";
+import { useLayerEditorStore } from "../store/layerEditorStore";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
 const SOFTPOT_STEPS = 24;
+const DEFAULT_SOFTPOT_POSITION = 11 / (SOFTPOT_STEPS - 1);
 
 function discretePosition01(rowIndex: number) {
   return Math.max(0, Math.min(1, rowIndex / (SOFTPOT_STEPS - 1)));
@@ -22,24 +23,26 @@ function rowIndexFromClientY(noteColEl: HTMLDivElement, clientY: number) {
   return Math.min(SOFTPOT_STEPS - 1, Math.floor(t * SOFTPOT_STEPS));
 }
 
-interface SoftPotProps {
-  selectedLayer: LayerId;
-  octave: number;
-}
-
-export default function SoftPot({ selectedLayer, octave }: SoftPotProps) {
+export default function SoftPot() {
+  const selectedLayer = useLayerEditorStore((s) => s.selectedLayerId);
+  const { octave, musicalKey } = useCompositionStore(
+    useShallow((s) => ({
+      octave: s.octave,
+      musicalKey: s.key,
+    })),
+  );
   const isDrums = selectedLayer === "E";
-  const softpotPosition = useMidiStore((s) => s.softpotPosition);
-  const setSoftpotPosition = useMidiStore((s) => s.setSoftpotPosition);
-  const keyName = useTransportStore((s) => s.key);
+  const [softpotPosition, setSoftpotPosition] = useState(
+    DEFAULT_SOFTPOT_POSITION,
+  );
   const activeIndex = Math.max(
     0,
     Math.min(23, Math.round(softpotPosition * (SOFTPOT_STEPS - 1))),
   );
   const baseOctave = typeof octave === "number" ? octave : 3;
   const chromoRows = useMemo(
-    () => softpotChromoRows(keyName, baseOctave),
-    [keyName, baseOctave],
+    () => softpotChromoRows(musicalKey, baseOctave),
+    [musicalKey, baseOctave],
   );
   const [gestureActive, setGestureActive] = useState(false);
 
@@ -56,7 +59,7 @@ export default function SoftPot({ selectedLayer, octave }: SoftPotProps) {
   const updateStripFromPointer = (element: HTMLDivElement, clientY: number) => {
     const rect = element.getBoundingClientRect();
     const relative = (clientY - rect.top) / rect.height;
-    setSoftpotPosition(relative);
+    setSoftpotPosition(Math.max(0, Math.min(1, relative)));
   };
 
   const handleStripPointerDown = usePointerDrag<HTMLDivElement>({
@@ -88,7 +91,10 @@ export default function SoftPot({ selectedLayer, octave }: SoftPotProps) {
       <div className="sp-hdr">softpot</div>
       <div className="sp-body">
         <div className="sp-strip" onPointerDown={handleStripPointerDown}>
-          <div className="sp-dot" style={{ top: `${softpotPosition * 100}%` }} />
+          <div
+            className="sp-dot"
+            style={{ top: `${softpotPosition * 100}%` }}
+          />
         </div>
         {!isDrums ? (
           <div

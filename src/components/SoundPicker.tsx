@@ -1,5 +1,5 @@
-import { SOUND_OPTIONS } from "../lib/layers";
 import type { LayerId } from "../types/layer";
+import { SOUND_OPTIONS } from "../lib/sounds";
 
 interface SoundPickerProps {
   selectedLayer: LayerId;

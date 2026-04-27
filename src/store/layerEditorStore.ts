@@ -1,115 +1,67 @@
 import { create } from "zustand";
-import type { LayerId, LayerLoopId } from "../types/layer";
-import type { LoopDefinitionId, LoopInstanceId } from "../types/loop";
+import type { LayerId, LayerLoopId, LoopInstanceId } from "../types/layer";
 import type { LayerEditorState } from "../types/layerEditor";
 
-/**
- * Layer editor store
- *
- * Owns temporary editor selection state only:
- * - selected layer id
- * - per-layer focus: layer default vs loop instance vs shared loop definition
- *
- * Does not own:
- * - saved layer project data
- * - mute/solo playback state
- */
 interface LayerEditorStore extends LayerEditorState {
   setSelectedLayerId: (id: LayerId) => void;
-  selectLayerDefault: (layerId: LayerId) => void;
   selectLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
-  selectLoopInstance: (
+  selectInstance: (
     layerId: LayerId,
-    loopInstanceId: LoopInstanceId,
+    loopId: LayerLoopId,
+    instanceId: LoopInstanceId,
   ) => void;
-  selectLoopDefinition: (
+  toggleLoopSelection: (layerId: LayerId, loopId: LayerLoopId) => void;
+  toggleInstanceSelection: (
     layerId: LayerId,
-    loopDefinitionId: LoopDefinitionId,
+    loopId: LayerLoopId,
+    instanceId: LoopInstanceId,
   ) => void;
-  clearLoopFocus: (layerId: LayerId) => void;
-  /** @deprecated Use selectLoopInstance / clearLoopFocus */
-  setSelectedLoopInstanceId: (
-    layerId: LayerId,
-    loopInstanceId: LoopInstanceId | null,
-  ) => void;
-  /** @deprecated Use clearLoopFocus */
-  clearSelectedLoopInstanceId: (layerId: LayerId) => void;
+  clearLoopSelection: () => void;
+  clearInstanceSelection: () => void;
 }
-
-const emptyFocusByLayer =
-  (): LayerEditorState["selectedLoopFocusByLayer"] => ({});
 
 export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   selectedLayerId: "A",
-  selectedLoopFocusByLayer: emptyFocusByLayer(),
+  selectedLoopId: null,
+  selectedInstanceId: null,
 
-  setSelectedLayerId: (id) => set({ selectedLayerId: id }),
-
-  selectLayerDefault: (layerId) =>
-    set((state) => ({
-      selectedLayerId: layerId,
-      selectedLoopFocusByLayer: {
-        ...state.selectedLoopFocusByLayer,
-        [layerId]: { kind: "layerDefault" },
-      },
-    })),
-
-  selectLoopInstance: (layerId, loopInstanceId) =>
-    set((state) => ({
-      selectedLayerId: layerId,
-      selectedLoopFocusByLayer: {
-        ...state.selectedLoopFocusByLayer,
-        [layerId]: { kind: "instance", loopInstanceId },
-      },
-    })),
+  setSelectedLayerId: (id) =>
+    set({
+      selectedLayerId: id,
+      selectedLoopId: null,
+      selectedInstanceId: null,
+    }),
 
   selectLoop: (layerId, loopId) =>
-    set((state) => ({
+    set({
       selectedLayerId: layerId,
-      selectedLoopFocusByLayer: {
-        ...state.selectedLoopFocusByLayer,
-        [layerId]: { kind: "loop", loopId },
-      },
-    })),
-
-  selectLoopDefinition: (layerId, loopDefinitionId) =>
-    set((state) => ({
-      selectedLayerId: layerId,
-      selectedLoopFocusByLayer: {
-        ...state.selectedLoopFocusByLayer,
-        [layerId]: { kind: "definition", loopDefinitionId },
-      },
-    })),
-
-  clearLoopFocus: (layerId) =>
-    set((state) => {
-      const next = { ...state.selectedLoopFocusByLayer };
-      delete next[layerId];
-      return { selectedLoopFocusByLayer: next };
+      selectedLoopId: loopId,
+      selectedInstanceId: null,
     }),
 
-  setSelectedLoopInstanceId: (layerId, loopInstanceId) =>
+  selectInstance: (layerId, loopId, instanceId) =>
+    set({
+      selectedLayerId: layerId,
+      selectedLoopId: loopId,
+      selectedInstanceId: instanceId,
+    }),
+
+  toggleLoopSelection: (layerId, loopId) =>
     set((state) =>
-      loopInstanceId == null
-        ? {
-            selectedLoopFocusByLayer: {
-              ...state.selectedLoopFocusByLayer,
-              [layerId]: { kind: "layerDefault" },
-            },
-          }
-        : {
-            selectedLayerId: layerId,
-            selectedLoopFocusByLayer: {
-              ...state.selectedLoopFocusByLayer,
-              [layerId]: { kind: "instance", loopInstanceId },
-            },
-          },
+      state.selectedLayerId === layerId && state.selectedLoopId === loopId
+        ? { selectedLoopId: null, selectedInstanceId: null }
+        : { selectedLayerId: layerId, selectedLoopId: loopId, selectedInstanceId: null },
     ),
 
-  clearSelectedLoopInstanceId: (layerId) =>
-    set((state) => {
-      const next = { ...state.selectedLoopFocusByLayer };
-      delete next[layerId];
-      return { selectedLoopFocusByLayer: next };
-    }),
+  toggleInstanceSelection: (layerId, loopId, instanceId) =>
+    set((state) =>
+      state.selectedInstanceId === instanceId
+        ? { selectedInstanceId: null }
+        : { selectedLayerId: layerId, selectedLoopId: loopId, selectedInstanceId: instanceId },
+    ),
+
+  clearLoopSelection: () =>
+    set({ selectedLoopId: null, selectedInstanceId: null }),
+
+  clearInstanceSelection: () => set({ selectedInstanceId: null }),
 }));

@@ -1,6 +1,9 @@
+import { useShallow } from "zustand/react/shallow";
 import { useMidiStore } from "../store/midiStore";
-import { useTransportStore } from "../store/transportStore";
-import { getTimelineMetrics, playheadMeasureIndex } from "../store/utils/timeline";
+import { useCompositionStore } from "../store/compositionStore";
+import { compositionLoopBeatLength } from "../utils/compositionState";
+import { playheadMeasureIndex } from "../utils/midiTransport";
+import { snapPlayheadToView } from "../utils/midiTransport";
 import type { AppView } from "../types/app";
 
 interface MidiMeasureNavProps {
@@ -14,30 +17,34 @@ function formatVisibleMeasuresLabel(startIdx0: number, visibleCount: number) {
 }
 
 export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
-  const midiViewMeasureIndex = useMidiStore((s) => s.midiViewMeasureIndex);
-  const setMidiViewMeasureIndex = useMidiStore((s) => s.setMidiViewMeasureIndex);
-  const snapPlayheadToVisibleWindowStart = useMidiStore(
-    (s) => s.snapPlayheadToVisibleWindowStart,
-  );
-  const midiPlayheadBeat = useMidiStore((s) => s.midiPlayheadBeat);
-  const midiMeasuresVisible = useMidiStore((s) => s.midiMeasuresVisible);
-  const meter = useTransportStore((s) => s.meter);
-  const masterLoopLength = useTransportStore((s) => s.masterLoopLength);
-  const { beatsPerMeasure, beatLength, visibleCount, maxStart } = getTimelineMetrics(
-    meter,
-    masterLoopLength,
-    midiMeasuresVisible,
-  );
-  const currentStart = Math.max(0, Math.min(maxStart, midiViewMeasureIndex));
-  const playheadMeasureIdx = playheadMeasureIndex(
+  const {
+    midiViewMeasureIndex,
+    setMidiViewMeasureIndex,
     midiPlayheadBeat,
-    beatLength,
-    beatsPerMeasure,
-    Math.max(1, Math.ceil(beatLength / beatsPerMeasure)),
+    midiMeasuresVisible,
+  } = useMidiStore(
+    useShallow((s) => ({
+      midiViewMeasureIndex: s.midiViewMeasureIndex,
+      setMidiViewMeasureIndex: s.setMidiViewMeasureIndex,
+      midiPlayheadBeat: s.midiPlayheadBeat,
+      midiMeasuresVisible: s.midiMeasuresVisible,
+    })),
   );
+  const { meter, totalMeasures } = useCompositionStore(
+    useShallow((s) => ({
+      meter: s.meter,
+      totalMeasures: s.totalMeasures,
+    })),
+  );
+  const beatsPerMeasure = meter.beatsPerMeasure;
+  const beatLength = compositionLoopBeatLength(totalMeasures, beatsPerMeasure);
+  const measureCount = Math.max(1, Math.ceil(beatLength / beatsPerMeasure));
+  const maxStart = Math.max(0, measureCount - midiMeasuresVisible);
+  const currentStart = Math.max(0, Math.min(maxStart, midiViewMeasureIndex));
+  const playheadMeasureIdx = playheadMeasureIndex(midiPlayheadBeat, beatsPerMeasure);
   const playheadNotInView =
     playheadMeasureIdx < currentStart ||
-    playheadMeasureIdx >= currentStart + visibleCount;
+    playheadMeasureIdx >= currentStart + midiMeasuresVisible;
 
   const show =
     (currentView === "midi" || currentView === "dual") &&
@@ -45,6 +52,8 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
   if (!show) {
     return null;
   }
+
+  const handleSnapPlayhead = () => snapPlayheadToView(currentStart);
 
   return (
     <div className="midi-measure-nav midi-measure-nav--view-bar">
@@ -58,7 +67,7 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
         ←
       </button>
       <span className="midi-measure-label">
-        {formatVisibleMeasuresLabel(currentStart, visibleCount)}
+        {formatVisibleMeasuresLabel(currentStart, midiMeasuresVisible)}
       </span>
       <button
         type="button"
@@ -75,7 +84,7 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
         <button
           type="button"
           className="midi-measure-btn midi-measure-snap"
-          onClick={snapPlayheadToVisibleWindowStart}
+          onClick={handleSnapPlayhead}
           aria-label="move playhead to start of this measure"
         >
           ⟲ now bar

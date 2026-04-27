@@ -1,3 +1,5 @@
+import type { MusicalKey, Meter, NoteLetter, NoteValue } from "../types/composition";
+
 export const KEY_OPTIONS = [
   "C maj",
   "C min",
@@ -110,4 +112,47 @@ export function matchesKeyQuery(keyLabel: string, query: unknown): boolean {
     }
   }
   return true;
+}
+
+const NOTE_LETTERS: NoteLetter[] = ["A", "B", "C", "D", "E", "F", "G"];
+
+export function musicalKeyToString(key: MusicalKey): string {
+  const acc = key.accidental === "sharp" ? "#" : key.accidental === "flat" ? "b" : "";
+  return `${key.root}${acc} ${key.mode}`;
+}
+
+export const DEFAULT_KEY: MusicalKey = { root: "A", accidental: null, mode: "min" };
+
+export function musicalKeyFromString(str: string, fallback: MusicalKey = DEFAULT_KEY): MusicalKey {
+  const trimmed = String(str ?? "").trim();
+  const parts = trimmed.split(" ");
+  const rootPart = parts[0] ?? "";
+  const modePart = (parts[1] ?? "").toLowerCase();
+
+  const rootChar = rootPart[0]?.toUpperCase() as NoteLetter | undefined;
+  if (!rootChar || !NOTE_LETTERS.includes(rootChar)) return fallback;
+
+  const accidental = rootPart.includes("#") ? "sharp" : rootPart.includes("b") ? "flat" : null;
+  const mode = modePart === "maj" || modePart === "min" ? modePart : fallback.mode;
+
+  return { root: rootChar, accidental, mode };
+}
+
+export const DEFAULT_METER: Meter = { beatsPerMeasure: 4, noteValue: 4 };
+
+export function meterToString(meter: Meter): string {
+  return `${meter.beatsPerMeasure}/${meter.noteValue}`;
+}
+
+export function meterFromString(str: string, fallback: Meter = DEFAULT_METER): Meter {
+  const parts = String(str ?? "").split("/");
+  const top = Number.parseInt(parts[0] ?? "", 10);
+  const bottom = Number.parseInt(parts[1] ?? "", 10);
+  const noteValue = ([2, 4, 8, 16, 32] as NoteValue[]).includes(bottom as NoteValue)
+    ? (bottom as NoteValue)
+    : fallback.noteValue;
+  return {
+    beatsPerMeasure: top > 0 ? top : fallback.beatsPerMeasure,
+    noteValue,
+  };
 }
