@@ -1,3 +1,48 @@
+# loop soup
+
+Browser-based live looping instrument with layered phrase editing, composition timeline controls, and MIDI-roll views.
+
+## Stack
+
+- React + TypeScript + Vite
+- Zustand stores with local persistence
+- Tone.js for synthesis/transport
+
+## Local dev
+
+```bash
+npm install
+npm run dev
+```
+
+Build:
+
+```bash
+npm run build
+```
+
+## Architecture snapshot
+
+- `src/types`: source-of-truth state and domain contracts
+- `src/store`: Zustand stores by ownership (`composition`, `layer`, `midi`, `transport`, etc.)
+- `src/utils`: pure domain helpers (repeat math, pitch mapping, formatting, timeline helpers)
+- `src/components`: UI only; business logic belongs in stores/utils
+- `docs/architecture`: behavior and ownership specs
+
+## Ownership rules
+
+- Saved project layer data lives in `layerStore` + `src/types/layer.ts`.
+- Composition settings live in `compositionStore` + `src/types/composition.ts`.
+- MIDI roll layout/playhead view state lives in `midiStore` + `src/types/midi.ts`.
+- Selection state is `layerEditorStore` only.
+- Mute/solo state is `layerPlaybackStore` only.
+- Transport runtime toggles/signals are `transportStore` only.
+
+## Docs to update when behavior changes
+
+- `src/types/README.md`
+- `docs/architecture/audio-data-model.md`
+- `docs/architecture/layer-loop-behavior.md`
 # loop soup - OUTDATED
 
 A browser-based ambient-electronic looping instrument. The performer builds music live using a single continuous-pitch interface — humming a melody or playing one directly — which the system analyzes to detect key, tempo, and meter. Five independent layers are then built up in real time: hook, bass, melody, harmony, and drums. Everything is performed live. There is no random generation and no pre-loaded content.

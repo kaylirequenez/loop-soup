@@ -1,7 +1,21 @@
-import type { LayerLoopInstance, LoopNote, RepeatUnit } from "../types/layer";
+import type {
+  LayerLoop,
+  LayerLoopInstance,
+  LoopNote,
+  RepeatUnit,
+} from "../types/layer";
+import { isMidiInLoopNoteRange, loopNoteToMidi } from "./pitch";
 
 const MAX_REPEAT_EVERY_MEASURES = 4;
 
+/**
+ * Purpose:
+ * Returns the UI max repeat-every value for a repeat unit.
+ *
+ * Behavior:
+ * - Beats mode caps at one less than beatsPerMeasure.
+ * - Measures mode uses fixed product cap.
+ */
 export function maxRepeatEveryForUnit(
   unit: RepeatUnit,
   beatsPerMeasure: number,
@@ -12,6 +26,14 @@ export function maxRepeatEveryForUnit(
   return MAX_REPEAT_EVERY_MEASURES;
 }
 
+/**
+ * Purpose:
+ * Detects whether a repeat frequency would be ineffective for a phrase length.
+ *
+ * Behavior:
+ * - Returns true when frequency is shorter than one phrase span for selected unit.
+ * - Null frequency is treated as "repeat disabled" and returns false.
+ */
 export function isRepeatDisabledForUnit(
   spanBeats: number,
   beatsPerMeasure: number,
@@ -23,6 +45,10 @@ export function isRepeatDisabledForUnit(
   return frequency < spanBeats;
 }
 
+/**
+ * Purpose:
+ * Reads the active repeat-every memory based on current repeat unit.
+ */
 export function getRepeatEveryForUnit(
   unit: RepeatUnit,
   instance: LayerLoopInstance,
@@ -31,52 +57,38 @@ export function getRepeatEveryForUnit(
   return instance.repeatEveryBeatsMemory;
 }
 
-/**
- * Converts a 0-indexed composition beat to 1-based { measure, beat } for display.
- *
- * @param startBeat - 0-indexed beat in the composition; must be a non-negative integer.
- * @param beatsPerMeasure - Beats per measure from the composition meter; must be ≥ 1.
- * @returns { measure, beat } both 1-based.
- */
-export function startBeatToDisplay(
-  startBeat: number,
-  beatsPerMeasure: number,
-): { measure: number; beat: number } {
-  return {
-    measure: Math.floor(startBeat / beatsPerMeasure) + 1,
-    beat: (startBeat % beatsPerMeasure) + 1,
-  };
-}
-
-/**
- * Converts 1-based display { measure, beat } back to a 0-indexed composition beat.
- * Caller is responsible for validating and flooring inputs before calling.
- *
- * @param measure - 1-based measure number; must be a valid integer ≥ 1.
- * @param beat - 1-based beat within the measure; must be in [1, beatsPerMeasure].
- * @param beatsPerMeasure - Beats per measure from the composition meter; must be ≥ 1.
- * @returns 0-indexed beat ≥ 0.
- */
-export function displayToStartBeat(
-  measure: number,
-  beat: number,
-  beatsPerMeasure: number,
-): number {
-  return (measure - 1) * beatsPerMeasure + (beat - 1);
-}
-
-// TODO: need to have highest & lowest pitch since keys can change
-export function canShiftLoopNoteOctaveBy(
+function canShiftLoopNoteOctaveBy(
   loopNote: LoopNote,
   delta: number,
 ): boolean {
-  return loopNote.octave + delta >= 0 && loopNote.octave + delta < 8;
+  const nextMidi = loopNoteToMidi(loopNote) + delta * 12;
+  return isMidiInLoopNoteRange(nextMidi);
 }
 
+/** True when every note can move by `delta` octaves without leaving MIDI bounds. */
 export function canShiftLoopNotesOctaveBy(
   notes: LoopNote[],
   delta: number,
 ): boolean {
   if (notes.length === 0) return false;
-  return notes.some((n) => canShiftLoopNoteOctaveBy(n, delta));
+  return notes.every((n) => canShiftLoopNoteOctaveBy(n, delta));
+}
+
+/**
+ * Purpose:
+ * Returns loop instances sorted deterministically for timeline rendering.
+ *
+ * Behavior:
+ * - Primary sort by startBeat ascending.
+ * - Tie-break on id ascending.
+ */
+export function listLayerLoopInstancesSorted(
+  loop: LayerLoop,
+): LayerLoopInstance[] {
+  return Object.values(loop.loopInstances).sort((a, b) => {
+    if (a.startBeat !== b.startBeat) {
+      return a.startBeat - b.startBeat;
+    }
+    return a.id - b.id;
+  });
 }

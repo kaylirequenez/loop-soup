@@ -37,8 +37,8 @@ export interface LayerLoopInstance {
   repeatUnit: RepeatUnit;
   repeatEveryMeasuresMemory: number | null;
   repeatEveryBeatsMemory: number | null;
-  /** Exclusive end beat for repeats; repeats stop before reaching this beat. */
-  repeatEndBeat: number | null;
+  /** Number of extra repeats after the base phrase. null = repeat to composition end. */
+  repeatCount: number | null;
 }
 
 /** Musical content shared across all instances of this loop. */
@@ -68,7 +68,72 @@ export interface Layer {
   layerLoops: Record<LayerLoopId, LayerLoop>;
 }
 
-/** Alias for saved layer row (same as `Layer`). */
-export type LayerState = Layer;
-
 export type LayersState = Record<LayerId, Layer>;
+
+export interface LayerStoreState {
+  /** Saved layer project data keyed by layer id. */
+  layers: LayersState;
+
+  setLayerVolume: (id: LayerId, volume: number) => void;
+  setLayerSoundId: (id: LayerId, soundId: string | null) => void;
+  setLayerKnobValue: (
+    id: LayerId,
+    effect: LayerKnobEffect,
+    value: number,
+  ) => void;
+  addLoopInstance: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    loopInstance: {
+      id: LoopInstanceId;
+      startBeat: number;
+      repeatUnit?: RepeatUnit;
+      repeatEveryMeasuresMemory?: number | null;
+      repeatEveryBeatsMemory?: number | null;
+      repeatCount?: number | null;
+    },
+  ) => void;
+  duplicateLoopInstance: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    sourceLoopInstanceId: LoopInstanceId,
+    nextLoopInstanceId: LoopInstanceId,
+    nextStartBeat: number,
+  ) => void;
+  setLoopSoundId: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    soundId: string | null,
+  ) => void;
+  setLoopKnobValue: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    effect: LayerKnobEffect,
+    value: number,
+  ) => void;
+  shiftLoopNotesOctave: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    delta: number,
+  ) => void;
+  setLoopInstanceRepeatUnit: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    instanceId: LoopInstanceId,
+    unit: RepeatUnit,
+    beatsPerMeasure: number,
+  ) => void;
+  toggleLoopInstanceRepeatEvery: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    instanceId: LoopInstanceId,
+    value: number,
+    beatsPerMeasure: number,
+  ) => void;
+  setLoopInstanceStartBeat: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    instanceId: LoopInstanceId,
+    startBeat: number,
+  ) => void;
+}

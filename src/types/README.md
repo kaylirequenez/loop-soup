@@ -1,58 +1,60 @@
-# Types Overview - OUTDATED
+# Types Overview
+
+This folder is the source of truth for all store state shapes and shared domain models.
 
 ## File ownership
 
-### `loop.ts`
-Reusable musical content only.
+### `composition.ts`
+Global composition settings used by `compositionStore` and pitch/timeline helpers.
 
 Contains:
-- `LoopDefinition`
-- `LoopNote`
-- loop ids
-
-Does not contain:
-- placement
-- repeat behavior
-- sound mapping
-- mute/solo state
+- key/meter primitives (`MusicalKey`, `Meter`, etc.)
+- `CompositionStoreState`
 
 ### `layer.ts`
-Saved layer project data.
+Saved layer project data + actions owned by `layerStore`.
 
 Contains:
-- `Layer`
-- `LayerLoop`
-- `LayerLoopInstance`
-- `SoundMapping`
-- knob-related types
-
-Does not contain:
-- selected layer
-- selected loop id / selection focus
-- manual mute state
-- solo state
+- ids and layer-domain primitives (`LayerId`, `LayerKnobEffect`, etc.)
+- project structures (`Layer`, `LayerLoop`, `LayerLoopInstance`)
+- `LayerStoreState`
 
 ### `layerEditor.ts`
-Temporary editor state.
+Transient editing focus state owned by `layerEditorStore`.
 
 Contains:
-- selected layer id
-- per-layer editor focus: layer default mapping vs one loop instance vs shared loop definition (`LoopEditorFocus` in `selectedLoopFocusByLayer`)
+- selected layer/loop/instance pointers
 
 ### `layerPlayback.ts`
-Temporary playback state.
+Transient playback override state owned by `layerPlaybackStore`.
 
 Contains:
-- manual mutes
-- solo layer id
+- manual mute preferences
+- solo override target
+
+### `midi.ts`
+MIDI-roll data contracts used by view logic and `midiStore`.
+
+Contains:
+- roll placement/routing types
+- expanded note event shape (`CombinedNoteEvent`)
+- `MidiStoreState`
 
 ### `transport.ts`
-Transport / timeline types used by `transportStore` (persisted fields vs runtime clock UI).
+Runtime transport toggles/signals used by `transportStore`.
 
-## Important rules
+Contains:
+- `TransportRuntimeState`
+- `TransportStoreState`
 
-- `Layer.defaultMapping` is shown when no loop is selected.
-- `LayerLoop.mapping` is the editable mapping when that loop is selected.
-- `LayerLoop` references exactly one shared `LoopDefinition`.
-- `LayerLoopInstance` stores placement/repeat only and never stores sound mapping.
-- Mute and solo state are not stored inside saved layer project data.
+### `app.ts`
+Top-level app-view union types.
+
+## Consistency rules
+
+- Every store state/action interface lives in `src/types/*` and is imported by the store file.
+- `Layer.defaultMapping` is the no-selection mapping target.
+- `LayerLoop.mapping` is loop-specific mapping.
+- `LayerLoopInstance` stores placement/repeat only.
+- Manual mute + solo state stay outside saved layer project data.
+- Beat positions are 0-indexed in data structures unless a field comment says otherwise.

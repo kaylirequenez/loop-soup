@@ -1,5 +1,3 @@
-import type { PointerEventHandler } from "react";
-
 interface NowbarProps {
   /** Current playhead position in beats (composition-global). */
   beat: number;
@@ -9,7 +7,6 @@ interface NowbarProps {
   endBeat: number;
   /** CSS class applied to the bar element. */
   className: string;
-  onPointerDown?: PointerEventHandler<HTMLDivElement>;
 }
 
 /**
@@ -27,15 +24,10 @@ export function Nowbar({
   startBeat,
   endBeat,
   className,
-  onPointerDown,
 }: NowbarProps) {
   if (beat < startBeat || beat >= endBeat) return null;
   const pct = ((beat - startBeat) / (endBeat - startBeat)) * 100;
   return (
-    <div
-      className={className}
-      style={{ left: `${pct}%` }}
-      onPointerDown={onPointerDown}
-    />
+    <div className={className} style={{ left: `${pct}%` }} />
   );
 }

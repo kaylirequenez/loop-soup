@@ -23,7 +23,7 @@ export function MidiRollNote({
 }: MidiRollNoteProps) {
   const tap = () => {
     const layerId = rect.layer;
-    const loopId = rect.LayerLoopId;
+    const loopId = rect.layerLoopId;
     const editorState = useLayerEditorStore.getState();
     const isSelected =
       editorState.selectedLayerId === layerId &&
@@ -38,6 +38,7 @@ export function MidiRollNote({
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
     if (event.pointerType !== "mouse" || event.button === 0) tap();
   };
 

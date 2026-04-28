@@ -3,6 +3,14 @@ import type { TransportStoreState } from "../types/transport";
 
 export const TRANSPORT_STORE_KEY = "loop-soup-transport";
 
+/**
+ * Transport store
+ *
+ * Owns runtime transport toggles/signals only:
+ * - play/pause state
+ * - add / extend toggles
+ * - nonce used to retrigger transport side effects
+ */
 export const useTransportStore = create<TransportStoreState>()((set) => ({
   isPlaying: false,
   addOn: false,

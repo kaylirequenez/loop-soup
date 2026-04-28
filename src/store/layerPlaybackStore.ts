@@ -9,9 +9,6 @@ import type { LayerPlaybackState } from "../types/layerPlayback";
  * - manual mutes
  * - solo layer id
  *
- * Does not own:
- * - saved layer project data
- * - editor selection state
  */
 interface LayerPlaybackStore extends LayerPlaybackState {
   toggleManualMute: (id: LayerId) => void;
@@ -20,6 +17,7 @@ interface LayerPlaybackStore extends LayerPlaybackState {
   isLayerAudible: (id: LayerId) => boolean;
 }
 
+/** Initializes manual mute preferences with all layers unmuted. */
 const buildDefaultManualMutes = (): Record<LayerId, boolean> => ({
   A: false,
   B: false,

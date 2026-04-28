@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   KEY_OPTIONS,
   matchesKeyQuery,
   normalizeKeyText,
+} from "./userInput/keySearch";
+import {
   musicalKeyToString,
   musicalKeyFromString,
   meterToString,
-} from "../lib/musicKeys";
-import { LOOP_OCTAVE_MAX, LOOP_OCTAVE_MIN } from "../utils/compositionState";
-import { inputKeyHandler } from "../utils";
+} from "../utils/format";
+import { loopOctaveBoundsForKey } from "../utils/compositionState";
+import { commitIntegerDraft, inputKeyHandler } from "./userInput";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
 import { useMidiStore } from "../store/midiStore";
@@ -18,9 +19,6 @@ import { useLayerEditorStore } from "../store/layerEditorStore";
 
 const MIN_BPM = 40;
 const MAX_BPM = 240;
-const OCTAVE_DISPLAY_MIN = LOOP_OCTAVE_MIN + 1;
-const OCTAVE_DISPLAY_MAX = LOOP_OCTAVE_MAX + 1;
-
 interface TopBarProps {
   onOpenHook: () => void;
 }
@@ -48,13 +46,11 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
     })),
   );
   const isPlaying = useTransportStore((s) => s.isPlaying);
-  const { midiPlayheadBeat, midiMeasuresVisible } = useMidiStore(
+  const { midiPlayheadBeat } = useMidiStore(
     useShallow((s) => ({
       midiPlayheadBeat: s.midiPlayheadBeat,
-      midiMeasuresVisible: s.midiMeasuresVisible,
     })),
   );
-  const selectedLayerId = useLayerEditorStore((s) => s.selectedLayerId);
 
   const nowMeasure = Math.min(
     totalMeasures,
@@ -64,65 +60,38 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
   const keyName = musicalKeyToString(musicalKey);
   const meterLabel = meterToString(meter);
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const [bpmDraft, setBpmDraft] = useState(String(bpm));
-  const [bpmError, setBpmError] = useState("");
   const [keyDraft, setKeyDraft] = useState(keyName);
   const [octaveViewDraft, setOctaveViewDraft] = useState(() =>
     String(octave + 1),
   );
   const [openMenu, setOpenMenu] = useState<"key" | null>(null);
-  const bpmErrorText = useMemo(
-    () => `Tempo must be ${MIN_BPM}-${MAX_BPM} BPM`,
-    [],
+  const octaveBounds = useMemo(
+    () => loopOctaveBoundsForKey(musicalKey),
+    [musicalKey],
   );
-  const bpmIntErrorText = "Tempo must be a whole number";
-
-  useEffect(() => {
-    if (!bpmError) return undefined;
-    const timeoutId = window.setTimeout(() => setBpmError(""), 2500);
-    return () => window.clearTimeout(timeoutId);
-  }, [bpmError]);
-
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setKeyDraft(keyName);
-        setOpenMenu(null);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [keyName]);
-
-  useEffect(() => {
-    setOpenMenu(null);
-  }, [selectedLayerId]);
 
   useEffect(() => {
     setOctaveViewDraft(String(octave + 1));
   }, [octave]);
 
-  const commitBpm = () => {
-    const trimmed = bpmDraft.trim();
-    if (!/^\d+$/.test(trimmed)) {
-      setBpmDraft(String(bpm));
-      setBpmError(bpmIntErrorText);
-      return;
-    }
-    const parsed = Number.parseInt(trimmed, 10);
-    if (parsed >= MIN_BPM && parsed <= MAX_BPM) {
-      setBpm(parsed);
-      setBpmError("");
-      return;
-    }
+  const resetBpmDraft = () => {
     setBpmDraft(String(bpm));
-    setBpmError(bpmErrorText);
   };
 
-  const handleBpmKeyDown = inputKeyHandler(() => {
-    setBpmDraft(String(bpm));
-    setBpmError("");
+  const commitBpm = () => {
+    const next = commitIntegerDraft({
+      draft: bpmDraft,
+      fallback: bpm,
+      min: MIN_BPM,
+      max: MAX_BPM,
+    });
+    setBpm(next);
+    setBpmDraft(String(next));
+  };
+
+  const handleBpmKeyDown = inputKeyHandler({
+    onEscape: resetBpmDraft,
   });
 
   const filteredKeyOptions = useMemo(() => {
@@ -130,35 +99,45 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
     return KEY_OPTIONS.filter((value) => matchesKeyQuery(value, keyDraft));
   }, [keyDraft]);
 
-  const commitOctaveView = () => {
-    const trimmed = String(octaveViewDraft ?? "").trim();
-    if (!/^-?\d+$/.test(trimmed)) {
-      setOctaveViewDraft(String(octave + 1));
+  const resetKeyDraft = () => {
+    setKeyDraft(keyName);
+    setOpenMenu(null);
+  };
+
+  const commitKeyDraft = () => {
+    const typed = keyDraft.trim();
+    if (!typed) {
+      resetKeyDraft();
       return;
     }
-    const displayVal = Number.parseInt(trimmed, 10);
-    const clamped = Math.max(
-      OCTAVE_DISPLAY_MIN,
-      Math.min(OCTAVE_DISPLAY_MAX, displayVal),
-    );
-    setOctave(clamped - 1);
-    setOctaveViewDraft(String(clamped));
-  };
-
-  const stopEscapeKeyInput = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Escape") {
-      setKeyDraft(keyName);
-      setOpenMenu(null);
-      event.currentTarget.blur();
+    const first = filteredKeyOptions[0];
+    if (!first) {
+      resetKeyDraft();
+      return;
     }
+    setKey(musicalKeyFromString(first));
+    setKeyDraft(first);
+    setOpenMenu(null);
   };
 
-  const stopPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.stopPropagation();
+  const commitOctaveView = () => {
+    const next = commitIntegerDraft({
+      draft: octaveViewDraft,
+      fallback: octave + 1,
+      min: octaveBounds.min + 1,
+      max: octaveBounds.max + 1,
+    });
+    setOctave(next - 1);
+    setOctaveViewDraft(String(next));
   };
+
+  const handleKeyInputKeyDown = inputKeyHandler({
+    onEnter: commitKeyDraft,
+    onEscape: resetKeyDraft,
+  });
 
   return (
-    <div className="top-bar" ref={containerRef}>
+    <div className="top-bar">
       <div className="stats">
         <div className="stat-block stat-block-bpm">
           <input
@@ -172,7 +151,6 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
             aria-label="tempo in beats per minute"
           />
           <div className="stat-label">BPM</div>
-          {bpmError && <div className="stat-error">{bpmError}</div>}
         </div>
         <div className="stat-block stat-block-key">
           <input
@@ -187,22 +165,19 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
               setKeyDraft("");
               setOpenMenu("key");
             }}
-            onKeyDown={stopEscapeKeyInput}
+            onBlur={commitKeyDraft}
+            onKeyDown={handleKeyInputKeyDown}
             aria-label="musical key"
           />
           {openMenu === "key" && (
-            <div
-              className="stat-menu"
-              role="listbox"
-              aria-label="key options"
-              onPointerDown={stopPointer}
-            >
+            <div className="stat-menu" role="listbox" aria-label="key options">
               {filteredKeyOptions.length > 0 ? (
                 filteredKeyOptions.map((value) => (
                   <button
                     type="button"
                     key={value}
                     className={`stat-menu-item ${value === keyName ? "stat-menu-item-on" : ""}`}
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
                       setKey(musicalKeyFromString(value));
                       setKeyDraft(value);
@@ -241,7 +216,8 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
               className="stat-oct-btn"
               aria-label="Lower octave view"
               title="Lower displayed pitch range"
-              onClick={() => setOctave(Math.max(LOOP_OCTAVE_MIN, octave - 1))}
+              onClick={() => setOctave(octave - 1)}
+              disabled={octave <= octaveBounds.min}
             >
               -
             </button>
@@ -253,16 +229,17 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
               value={octaveViewDraft}
               onChange={(event) => setOctaveViewDraft(event.target.value)}
               onBlur={commitOctaveView}
-              onKeyDown={inputKeyHandler(() =>
-                setOctaveViewDraft(String(octave + 1)),
-              )}
+              onKeyDown={inputKeyHandler({
+                onEscape: () => setOctaveViewDraft(String(octave + 1)),
+              })}
             />
             <button
               type="button"
               className="stat-oct-btn"
               aria-label="Raise octave view"
               title="Raise displayed pitch range"
-              onClick={() => setOctave(Math.min(LOOP_OCTAVE_MAX, octave + 1))}
+              onClick={() => setOctave(octave + 1)}
+              disabled={octave >= octaveBounds.max}
             >
               +
             </button>

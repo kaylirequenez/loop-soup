@@ -13,49 +13,7 @@ import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useMidiStore } from "../store/midiStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
-
-const RESTART_BAR = { x: 2, y: 6.5, w: 2, h: 11, rx: 0.4 };
-const RESTART_BAR_RIGHT = RESTART_BAR.x + RESTART_BAR.w;
-const RESTART_DOUBLE_CHEVRON_LEFT = `M ${RESTART_BAR_RIGHT} 12 L 9 6.5 L 9 17.5 Z M 9 12 L 14 6.5 L 14 17.5 Z`;
-const RESTART_SINGLE_CHEVRON_LEFT = `M ${RESTART_BAR_RIGHT} 12 L 11 6.5 L 11 17.5 Z`;
-const RESTART_ICON_CENTER_X_COMPOSITION = 4;
-const RESTART_ICON_CENTER_X_VIEW = 5.5;
-
-function IconRestartComposition() {
-  const { x, y, w, h, rx } = RESTART_BAR;
-  return (
-    <svg
-      className="btn-restart-svg"
-      viewBox="0 0 24 24"
-      width={15}
-      height={15}
-      aria-hidden
-    >
-      <g transform={`translate(${RESTART_ICON_CENTER_X_COMPOSITION}, 0)`}>
-        <rect x={x} y={y} width={w} height={h} rx={rx} fill="currentColor" />
-        <path fill="currentColor" d={RESTART_DOUBLE_CHEVRON_LEFT} />
-      </g>
-    </svg>
-  );
-}
-
-function IconRestartView() {
-  const { x, y, w, h, rx } = RESTART_BAR;
-  return (
-    <svg
-      className="btn-restart-svg"
-      viewBox="0 0 24 24"
-      width={15}
-      height={15}
-      aria-hidden
-    >
-      <g transform={`translate(${RESTART_ICON_CENTER_X_VIEW}, 0)`}>
-        <rect x={x} y={y} width={w} height={h} rx={rx} fill="currentColor" />
-        <path fill="currentColor" d={RESTART_SINGLE_CHEVRON_LEFT} />
-      </g>
-    </svg>
-  );
-}
+import { IconRestartComposition, IconRestartView } from "../ui/restartIcons";
 
 export default function BottomControls() {
   const { isPlaying, addOn, togglePlaying, toggleAddOn, bumpTransportNonce } =
@@ -100,12 +58,14 @@ export default function BottomControls() {
     midiMeasuresVisible,
     midiViewMeasureIndex,
     setMidiPlayheadBeat,
+    setMidiMeasuresVisible,
     setMidiViewMeasureIndex,
   } = useMidiStore(
     useShallow((s) => ({
       midiMeasuresVisible: s.midiMeasuresVisible,
       midiViewMeasureIndex: s.midiViewMeasureIndex,
       setMidiPlayheadBeat: s.setMidiPlayheadBeat,
+      setMidiMeasuresVisible: s.setMidiMeasuresVisible,
       setMidiViewMeasureIndex: s.setMidiViewMeasureIndex,
     })),
   );
@@ -125,8 +85,7 @@ export default function BottomControls() {
   const instanceEnabled = selectedInstanceId != null;
   const loopEnabled = selectedLoopId != null;
   const canRemoveLastMeasure = totalMeasures >= 2;
-  const canAddMeasure =
-    totalMeasures < maxMeasuresCompositionLimit(meter.beatsPerMeasure);
+  const canAddMeasure = totalMeasures < maxMeasuresCompositionLimit();
   const spanBeats = activeLoop?.loop.definition.spanBeats ?? 1;
   const repeatUnit = activeLoop?.instance?.repeatUnit ?? "measures";
   const repeatEvery = activeLoop?.instance
@@ -149,8 +108,14 @@ export default function BottomControls() {
   const handleAddMeasure = () => {
     const newTotal = totalMeasures + 1;
     setTotalMeasures(newTotal);
-    const vis = Math.min(midiMeasuresVisible, newTotal);
-    setMidiViewMeasureIndex(Math.max(0, newTotal - vis));
+    setMidiViewMeasureIndex(newTotal - midiMeasuresVisible);
+  };
+
+  const handleRemoveMeasure = () => {
+    if (!canRemoveLastMeasure) return;
+    const newTotal = totalMeasures - 1;
+    setMidiMeasuresVisible(Math.min(midiMeasuresVisible, newTotal));
+    setTotalMeasures(newTotal);
   };
 
   return (
@@ -202,9 +167,7 @@ export default function BottomControls() {
             <button
               type="button"
               className="btn"
-              onClick={() => {
-                if (canRemoveLastMeasure) setTotalMeasures(totalMeasures - 1);
-              }}
+              onClick={handleRemoveMeasure}
               disabled={!canRemoveLastMeasure}
             >
               - measure

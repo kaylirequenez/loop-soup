@@ -25,7 +25,7 @@ export const DEFAULT_LAYERS = {
         mapping: { soundId: "synth lead", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: {
-          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatEndBeat: null },
+          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatCount: null },
         },
       },
     },
@@ -48,7 +48,7 @@ export const DEFAULT_LAYERS = {
         mapping: { soundId: "sub bass", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: {
-          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatEndBeat: null },
+          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatCount: null },
         },
       },
     },
@@ -72,7 +72,7 @@ export const DEFAULT_LAYERS = {
         mapping: { soundId: "synth lead", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: {
-          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatEndBeat: null },
+          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatCount: null },
         },
       },
     },
@@ -97,7 +97,7 @@ export const DEFAULT_LAYERS = {
         mapping: { soundId: "pad", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: {
-          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatEndBeat: null },
+          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatCount: null },
         },
       },
     },
@@ -120,7 +120,7 @@ export const DEFAULT_LAYERS = {
         mapping: { soundId: "electronic kit", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: {
-          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatEndBeat: null },
+          1: { id: 1, startBeat: 0, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatCount: null },
         },
       },
       2: {
@@ -135,7 +135,7 @@ export const DEFAULT_LAYERS = {
         mapping: { soundId: "electronic kit", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: {
-          1: { id: 1, startBeat: 4, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatEndBeat: null },
+          1: { id: 1, startBeat: 4, repeatUnit: "measures", repeatEveryMeasuresMemory: null, repeatEveryBeatsMemory: null, repeatCount: null },
         },
       },
     },

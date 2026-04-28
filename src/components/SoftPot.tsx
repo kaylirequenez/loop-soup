@@ -1,16 +1,29 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { clamp } from "../utils";
 import { useCompositionStore } from "../store/compositionStore";
-import { softpotChromoRows } from "../utils/pitch";
+import {
+  isMidiInLoopNoteRange,
+  LOOP_NOTE_MIDI_MAX,
+  LOOP_NOTE_MIDI_MIN,
+  softpotChromoRows,
+} from "../utils/pitch";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
 const SOFTPOT_STEPS = 24;
-const DEFAULT_SOFTPOT_POSITION = 11 / (SOFTPOT_STEPS - 1);
+const DEFAULT_SOFTPOT_POSITION = 11.5 / SOFTPOT_STEPS;
 
-function discretePosition01(rowIndex: number) {
-  return Math.max(0, Math.min(1, rowIndex / (SOFTPOT_STEPS - 1)));
+function rowCenterPosition01(rowIndex: number) {
+  return Math.max(0, Math.min(1, (rowIndex + 0.5) / SOFTPOT_STEPS));
+}
+
+function rowIndexFromPosition(position01: number) {
+  return Math.max(
+    0,
+    Math.min(SOFTPOT_STEPS - 1, Math.round(position01 * SOFTPOT_STEPS - 0.5)),
+  );
 }
 
 function rowIndexFromClientY(noteColEl: HTMLDivElement, clientY: number) {
@@ -20,7 +33,7 @@ function rowIndexFromClientY(noteColEl: HTMLDivElement, clientY: number) {
     return 0;
   }
   const t = Math.max(0, Math.min(1, (clientY - rect.top) / h));
-  return Math.min(SOFTPOT_STEPS - 1, Math.floor(t * SOFTPOT_STEPS));
+  return rowIndexFromPosition(t);
 }
 
 export default function SoftPot() {
@@ -35,16 +48,51 @@ export default function SoftPot() {
   const [softpotPosition, setSoftpotPosition] = useState(
     DEFAULT_SOFTPOT_POSITION,
   );
-  const activeIndex = Math.max(
-    0,
-    Math.min(23, Math.round(softpotPosition * (SOFTPOT_STEPS - 1))),
-  );
-  const baseOctave = typeof octave === "number" ? octave : 3;
+  const activeIndex = rowIndexFromPosition(softpotPosition);
   const chromoRows = useMemo(
-    () => softpotChromoRows(musicalKey, baseOctave),
-    [musicalKey, baseOctave],
+    () => softpotChromoRows(musicalKey, octave),
+    [musicalKey, octave],
+  );
+  const allowedRows = useMemo(
+    () => chromoRows.filter((row) => isMidiInLoopNoteRange(row.midi)),
+    [chromoRows],
+  );
+  const allowedMinRow = allowedRows[0]?.index ?? 0;
+  const allowedMaxRow =
+    allowedRows[allowedRows.length - 1]?.index ?? SOFTPOT_STEPS - 1;
+  const topMidi = chromoRows[0]?.midi ?? LOOP_NOTE_MIDI_MAX;
+  const allowedMinPosition = Math.max(0, (topMidi - 126.5) / SOFTPOT_STEPS);
+  const allowedMaxPosition = 1;
+  const currentMidiExact = useMemo(() => {
+    const midiFloat = topMidi - (softpotPosition * SOFTPOT_STEPS - 0.5);
+    return clamp(midiFloat, LOOP_NOTE_MIDI_MIN, LOOP_NOTE_MIDI_MAX);
+  }, [topMidi, softpotPosition]);
+  const currentMidiRounded = useMemo(
+    () =>
+      clamp(
+        Math.round(currentMidiExact),
+        LOOP_NOTE_MIDI_MIN,
+        LOOP_NOTE_MIDI_MAX,
+      ),
+    [currentMidiExact],
   );
   const [gestureActive, setGestureActive] = useState(false);
+
+  const setSoftpotToAllowedRow = (targetRow: number) => {
+    const clampedRow = clamp(targetRow, allowedMinRow, allowedMaxRow);
+    setSoftpotPosition(rowCenterPosition01(clampedRow));
+  };
+
+  useEffect(() => {
+    const nextPosition = clamp(
+      softpotPosition,
+      allowedMinPosition,
+      allowedMaxPosition,
+    );
+    if (nextPosition !== softpotPosition) {
+      setSoftpotPosition(nextPosition);
+    }
+  }, [allowedMaxPosition, allowedMinPosition, softpotPosition]);
 
   const beginGesture = () => {
     setGestureActive(true);
@@ -58,8 +106,14 @@ export default function SoftPot() {
 
   const updateStripFromPointer = (element: HTMLDivElement, clientY: number) => {
     const rect = element.getBoundingClientRect();
+    if (rect.height <= 0) return;
     const relative = (clientY - rect.top) / rect.height;
-    setSoftpotPosition(Math.max(0, Math.min(1, relative)));
+    const nextPosition = clamp(
+      relative,
+      allowedMinPosition,
+      allowedMaxPosition,
+    );
+    setSoftpotPosition(nextPosition);
   };
 
   const handleStripPointerDown = usePointerDrag<HTMLDivElement>({
@@ -77,18 +131,19 @@ export default function SoftPot() {
     onStart: (noteCol, event) => {
       beginGesture();
       const row = rowIndexFromClientY(noteCol, event.clientY);
-      setSoftpotPosition(discretePosition01(row));
+      setSoftpotToAllowedRow(row);
     },
     onMove: (noteCol, moveEvent) => {
       const row = rowIndexFromClientY(noteCol, moveEvent.clientY);
-      setSoftpotPosition(discretePosition01(row));
+      setSoftpotToAllowedRow(row);
     },
     onEnd: () => endGesture(),
   });
 
   return (
     <div className="sp-zone">
-      <div className="sp-hdr">softpot</div>
+      <div className="sp-hdr" />
+      <div className="sp-badge">{`${currentMidiExact.toFixed(2)}`}</div>
       <div className="sp-body">
         <div className="sp-strip" onPointerDown={handleStripPointerDown}>
           <div
@@ -103,9 +158,18 @@ export default function SoftPot() {
           >
             {chromoRows.map((row) => {
               const isActiveRow = gestureActive && row.index === activeIndex;
-              const cls = `nb ${row.inKey ? "nb-s" : "nb-c"} ${row.isRoot ? "nb-o" : ""} ${isActiveRow ? "nb-a" : ""}`;
+              const rowAllowed = isMidiInLoopNoteRange(row.midi);
+              const cls = `nb ${row.inKey ? "nb-s" : "nb-c"} ${row.isRoot ? "nb-o" : ""} ${isActiveRow ? "nb-a" : ""} ${rowAllowed ? "" : "nb-r"}`;
               return (
-                <div className={cls} key={row.index}>
+                <div
+                  className={cls}
+                  key={row.index}
+                  title={
+                    rowAllowed
+                      ? undefined
+                      : `MIDI ${row.midi} is outside allowed ${LOOP_NOTE_MIDI_MIN}-${LOOP_NOTE_MIDI_MAX}`
+                  }
+                >
                   {row.label}
                 </div>
               );

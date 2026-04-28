@@ -1,4 +1,5 @@
 import type { MusicalKey, ScaleQuality } from "../types/composition";
+import type { LoopNote } from "../types/layer";
 
 const KEY_TO_PITCH_CLASS: Record<string, number> = {
   C: 0,
@@ -19,6 +20,10 @@ const NOTE_NAMES = [
   "C", "C#", "D", "D#", "E", "F",
   "F#", "G", "G#", "A", "A#", "B",
 ];
+
+/** Inclusive MIDI bounds used by loop-note and softpot note selection. */
+export const LOOP_NOTE_MIDI_MIN = 12;
+export const LOOP_NOTE_MIDI_MAX = 127;
 
 /**
  * Returns the pitch class (0–11) for the root of a musical key.
@@ -72,12 +77,25 @@ export function pitchClassRowIndex(
   return 11 - ((pitchClass - rootPc + 12) % 12);
 }
 
+/**
+ * MIDI note number for a loop note. Matches softpot labels:
+ * `Math.floor(midi / 12) - 1` is the displayed octave (C4 → 60, etc.).
+ */
+export function loopNoteToMidi(
+  note: Pick<LoopNote, "pitchClass" | "octave">,
+): number {
+  return (note.octave + 1) * 12 + note.pitchClass;
+}
+
+export function isMidiInLoopNoteRange(midi: number): boolean {
+  return midi >= LOOP_NOTE_MIDI_MIN && midi <= LOOP_NOTE_MIDI_MAX;
+}
+
 const SOFTPOT_STEPS = 24;
 
 /** MIDI note number for the lowest note in a 2-octave SoftPot span. */
 function softpotLowestMidi(key: MusicalKey, octave: number): number {
-  const oct = typeof octave === "number" ? octave : 3;
-  return (oct + 1) * 12 + pitchClassFromKey(key);
+  return (octave + 1) * 12 + pitchClassFromKey(key);
 }
 
 /**

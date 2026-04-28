@@ -429,6 +429,11 @@ body {
   background: rgba(0, 219, 231, 0.18);
   color: var(--on-surf);
 }
+.nb-r {
+  background: rgba(42, 18, 28, 0.62);
+  border-color: rgba(200, 110, 110, 0.28);
+  color: rgba(210, 140, 140, 0.72);
+}
 .drum-col {
   border: 0.5px solid var(--outline-var);
   border-radius: 4px;
@@ -940,6 +945,7 @@ body.drag-selection-lock * {
   font-size: 7px;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
   padding: 3px 1px;
   cursor: pointer;
   transition:
@@ -1274,7 +1280,7 @@ body.drag-selection-lock * {
 }
 .midi-layer-roll-row {
   display: grid;
-  grid-template-columns: 14px 1fr;
+  grid-template-columns: 14px minmax(0, 1fr);
   gap: 6px;
   align-items: center;
 }
@@ -1286,9 +1292,18 @@ body.drag-selection-lock * {
 }
 .midi-layer-roll-pick {
   display: flex;
-  gap: 2px;
-  align-items: center;
+  width: 100%;
+  align-items: stretch;
   min-width: 0;
+}
+.midi-layer-roll-pick .comp-roll-placement {
+  width: 100%;
+  justify-content: stretch;
+}
+.midi-layer-roll-pick .comp-roll-placement-btn {
+  font-size: 9px;
+  padding: 5px 0;
+  min-width: 28px;
 }
 .mtrack-lbl {
   font-size: 9px;

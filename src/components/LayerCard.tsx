@@ -1,48 +1,19 @@
+import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { LAYER_COLORS } from "../lib/layerUi";
+import { LAYER_COLORS } from "../ui/layerTheme";
 import { defaultSoundForLayer } from "../lib/sounds";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerPlaybackStore } from "../store/layerPlaybackStore";
 import type { LayerId, LayerKnobEffect } from "../types/layer";
 import { usePointerDrag } from "../hooks/usePointerDrag";
+import {
+  buildLayerKnobDefs,
+  getKnobUi,
+  getLayerLoopCountLabel,
+} from "../ui/layerCardUi";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
-const KNOB_ARC_START_DEG = -140;
-const KNOB_ARC_SWEEP_DEG = 280;
-const KNOB_ARC_RADIUS = 18;
-const KNOB_ARC_CENTER = 20;
-
-const polarToCartesian = (
-  centerX: number,
-  centerY: number,
-  radius: number,
-  angleDeg: number,
-) => {
-  const radians = ((angleDeg - 90) * Math.PI) / 180;
-  return {
-    x: centerX + radius * Math.cos(radians),
-    y: centerY + radius * Math.sin(radians),
-  };
-};
-
-const describeArc = (startDeg: number, endDeg: number) => {
-  const startPoint = polarToCartesian(
-    KNOB_ARC_CENTER,
-    KNOB_ARC_CENTER,
-    KNOB_ARC_RADIUS,
-    startDeg,
-  );
-  const endPoint = polarToCartesian(
-    KNOB_ARC_CENTER,
-    KNOB_ARC_CENTER,
-    KNOB_ARC_RADIUS,
-    endDeg,
-  );
-  const sweep = Math.max(0, endDeg - startDeg);
-  const largeArcFlag = sweep > 180 ? 1 : 0;
-  return `M ${startPoint.x} ${startPoint.y} A ${KNOB_ARC_RADIUS} ${KNOB_ARC_RADIUS} 0 ${largeArcFlag} 1 ${endPoint.x} ${endPoint.y}`;
-};
 
 export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const layer = useLayerStore((s) => s.layers[layerId]);
@@ -77,64 +48,43 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const loopCount = Object.keys(layer.layerLoops).length;
   const faderPercent = Math.round(layer.volume * 100);
 
-  const knobDefs = activeKnobOrder
-    .map((effect) => {
-      const knob = activeMapping.knobsByEffect[effect];
-      if (!knob) return null;
-      return { effect, label: knob.label, value: knob.value };
-    })
-    .filter(Boolean) as Array<{
+  const knobDefs = buildLayerKnobDefs(activeKnobOrder, activeMapping);
+
+  const knobDragStateRef = useRef<{
     effect: LayerKnobEffect;
-    label: string;
-    value: number;
-  }>;
+    startValue: number;
+    startY: number;
+  } | null>(null);
+
+  const handleKnobDragPointerDown = usePointerDrag<HTMLDivElement>({
+    dragLockClassName: DRAG_SELECTION_CLASS,
+    onStart: (_element, event) => {
+      event.stopPropagation();
+    },
+    onMove: (_element, moveEvent) => {
+      const dragState = knobDragStateRef.current;
+      if (!dragState) return;
+      if ((moveEvent.buttons & 1) !== 1) return;
+      const deltaY = dragState.startY - moveEvent.clientY;
+      const newValue = dragState.startValue + deltaY * 0.012;
+      if (activeLoopId != null) {
+        setLoopKnobValue(layerId, activeLoopId, dragState.effect, newValue);
+      } else {
+        setLayerKnobValue(layerId, dragState.effect, newValue);
+      }
+    },
+    onEnd: () => {
+      knobDragStateRef.current = null;
+    },
+  });
 
   const handleKnobPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
     effect: LayerKnobEffect,
     startValue: number,
   ) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const knobElement = event.currentTarget;
-    const startY = event.clientY;
-    const pointerId = event.pointerId;
-
-    knobElement.setPointerCapture(pointerId);
-    document.body.classList.add(DRAG_SELECTION_CLASS);
-
-    const onMove = (moveEvent: PointerEvent) => {
-      if ((moveEvent.buttons & 1) !== 1) {
-        onEnd();
-        return;
-      }
-
-      moveEvent.preventDefault();
-      const deltaY = startY - moveEvent.clientY;
-      const newValue = startValue + deltaY * 0.012;
-      if (activeLoopId != null) {
-        setLoopKnobValue(layerId, activeLoopId, effect, newValue);
-      } else {
-        setLayerKnobValue(layerId, effect, newValue);
-      }
-    };
-
-    const onEnd = () => {
-      knobElement.removeEventListener("pointermove", onMove);
-      knobElement.removeEventListener("pointerup", onEnd);
-      knobElement.removeEventListener("pointercancel", onEnd);
-
-      if (knobElement.hasPointerCapture(pointerId)) {
-        knobElement.releasePointerCapture(pointerId);
-      }
-
-      document.body.classList.remove(DRAG_SELECTION_CLASS);
-    };
-
-    knobElement.addEventListener("pointermove", onMove);
-    knobElement.addEventListener("pointerup", onEnd);
-    knobElement.addEventListener("pointercancel", onEnd);
+    knobDragStateRef.current = { effect, startValue, startY: event.clientY };
+    handleKnobDragPointerDown(event);
   };
 
   const handleFaderPointerDown = usePointerDrag<HTMLDivElement>({
@@ -160,7 +110,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
         </span>
         <div className="pills">
           <span className="pill pill-snd">{sound}</span>
-          <span className="pill">{`${loopCount} loop${loopCount === 1 ? "" : "s"}`}</span>
+          <span className="pill">{getLayerLoopCountLabel(loopCount)}</span>
         </div>
       </div>
 
@@ -169,15 +119,13 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
           {knobDefs.map(({ effect, label, value }) => (
             <div className="kg" key={`${layerId}-knob-${effect}`}>
               {(() => {
-                const knobValue = Math.max(0, Math.min(1, value ?? 0.5));
-                const knobAngle =
-                  KNOB_ARC_START_DEG + knobValue * KNOB_ARC_SWEEP_DEG;
-                const fullArcPath = describeArc(
-                  KNOB_ARC_START_DEG,
-                  KNOB_ARC_START_DEG + KNOB_ARC_SWEEP_DEG,
-                );
-                const valueArcPath = describeArc(KNOB_ARC_START_DEG, knobAngle);
-                const showValueArc = knobValue > 0.001;
+                const {
+                  knobValue,
+                  fullArcPath,
+                  valueArcPath,
+                  showValueArc,
+                  indicatorRotationDeg,
+                } = getKnobUi(value ?? 0.5);
 
                 return (
                   <div
@@ -211,7 +159,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
                       className="knob-indicator"
                       style={{
                         background: color,
-                        transform: `translate(-50%, -100%) rotate(${(knobValue - 0.5) * 280}deg)`,
+                        transform: `translate(-50%, -100%) rotate(${indicatorRotationDeg}deg)`,
                       }}
                     />
                   </div>

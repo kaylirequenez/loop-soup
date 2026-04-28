@@ -1,4 +1,4 @@
-import type { LayerId, LayerLoopId } from "./layer";
+import type { LayerId, LayerLoopId, LoopNote } from "./layer";
 
 export type RollSlot = 1 | 2;
 
@@ -13,19 +13,63 @@ export type MidiLoopRollPlacementMap = Record<
   Partial<Record<LayerLoopId, MidiRollPlacement>>
 >;
 
-export interface CombinedNoteEvent {
+export interface MidiStoreState {
+  /** Number of visible roll panes (1 or 2). */
+  midiRollCount: number;
+  /** When true, split notes by octave around composition root instead of placement map. */
+  midiRollSplitByRootOctave: boolean;
+  /** Number of measures currently visible in the roll viewport. */
+  midiMeasuresVisible: number;
+  /** 0-based index of the leftmost visible measure. */
+  midiViewMeasureIndex: number;
+  /** 0-based playhead beat inside composition timeline. */
+  midiPlayheadBeat: number;
+  /** Per-layer/per-loop assignment to roll slot(s). */
+  midiLoopRollPlacement: MidiLoopRollPlacementMap;
+  /** Layer-level placement summary (`null` when loops are mixed). */
+  midiLayerPlacement: MidiLayerPlacement;
+
+  toggleSecondRoll: () => void;
+  setMidiRollSplitByRootOctave: (enabled: boolean) => void;
+  setMidiMeasuresVisible: (value: number) => void;
+  setMidiViewMeasureIndex: (value: number) => void;
+  setMidiPlayheadBeat: (beat: number) => void;
+  setMidiLayerRollPlacement: (
+    layerId: LayerId,
+    placement: MidiRollPlacement,
+  ) => void;
+  setMidiLoopRollPlacement: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    placement: MidiRollPlacement,
+  ) => void;
+  isNoteOnRoll: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    storedOctave: number,
+    rollSlot: RollSlot,
+  ) => boolean;
+}
+
+export interface CombinedNoteEvent extends LoopNote {
+  /** Layer this note belongs to (A-E). */
   layer: LayerId;
+  /** 0-based loop index within the layer's ordered loops. */
   loopIndex: number;
-  LayerLoopId: LayerLoopId;
+  /** Stable loop id in layer storage. */
+  layerLoopId: LayerLoopId;
+  /** 0-based note index inside the loop definition note array. */
   noteIndex: number;
+  /** Effective octave used for roll split/routing decisions. */
   storedOctave: number;
+  /** Stable-ish render key including layer/loop/instance/note timing details. */
   noteKey: string;
+  /** Repeat offset (in beats) relative to instance.startBeat that produced this copy. */
   instanceOffset: number;
+  /** Absolute composition beat at note start (includes sub-beat). */
   globalStart: number;
+  /** Absolute composition beat at note end (exclusive). */
   globalEnd: number;
+  /** MIDI-roll row index after key-relative pitch mapping (0..11). */
   rowIndex: number;
-  pitchClass: number;
-  beatIndex: number;
-  startInBeat?: number;
-  lengthInBeat?: number;
 }

@@ -20,6 +20,14 @@ interface LayerEditorStore extends LayerEditorState {
   clearInstanceSelection: () => void;
 }
 
+/**
+ * Layer editor store
+ *
+ * Owns transient editing focus only:
+ * - selected layer
+ * - selected loop
+ * - selected instance
+ */
 export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   selectedLayerId: "A",
   selectedLoopId: null,

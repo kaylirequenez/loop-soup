@@ -31,7 +31,7 @@ Follow these rules unless the user explicitly asks for a temporary exception.
 - A new loop copies `Layer.defaultMapping` into its own `LayerLoop.mapping` when created.
 - Existing loop mappings do not auto-update when the layer default changes.
 - `LoopDefinition` contains shared `spanBeats` and `notes`.
-- `LayerLoop` contains `loopDefinitionId` and loop-level mapping.
+- `LayerLoop` contains shared `definition` and loop-level mapping.
 - `LayerLoopInstance` contains placement/repeat only.
 
 ---
@@ -119,31 +119,6 @@ If a function's behavior changes materially, update the JSDoc spec above that fu
 
 ---
 
-## Function Comment Rules
-
-For important functions, use JSDoc-style behavior comments directly above the function.
-
-Use this structure:
-
-````ts
-/**
- * Purpose:
- * ...
- *
- * Behavior:
- * - ...
- * - ...
- *
- * Inputs:
- * - ...
- *
- * Output:
- * - ...
- *
- * Invariants:
- * - ...
- */
-
 ## Code Quality Rules
 
 - Prefer simple shapes over clever abstractions.
@@ -173,27 +148,24 @@ If changing saved data shape:
 
 ## Function Spec Rules
 
-For important functions, write a short JSDoc spec directly above the function.
+Write a spec above functions in `utils/` and store files where behavior is non-obvious from the name and types. Not required in components.
 
-Use the exact format below unless there is a strong reason not to:
+Use the lightest form that captures what matters:
 
 ```ts
+/** One-liner for simple functions. */
+
+/**
+ * Short description when a sentence isn't enough.
+ * @param paramName - meaning and invariants
+ */
+
 /**
  * Purpose:
- * Short statement of what the function is responsible for.
+ * Short statement of responsibility.
  *
  * Behavior:
- * - Main behavior rule 1
- * - Main behavior rule 2
- *
- * Inputs:
- * - paramName: short meaning
- *
- * Output:
- * - What the function returns or updates
- *
- * Invariants:
- * - Important rule that must remain true
+ * - Notable edge case or invariant worth calling out.
  */
 ```
 
@@ -203,7 +175,7 @@ Use the exact format below unless there is a strong reason not to:
 
 At the top of important state/domain files, include a short file header comment describing ownership.
 
-Example patter:
+Example pattern:
 
 /\*\*
 
@@ -320,4 +292,3 @@ Do not add speculative complexity for:
 unless the user explicitly asks for them.
 
 Prefer the simplest design that satisfies the documented behavior and current roadmap.
-````

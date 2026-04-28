@@ -17,16 +17,25 @@ export default function MidiRoll() {
   );
   const layers = useLayerStore((s) => s.layers);
 
-  const { beatsPerMeasure, beatLength, combinedNoteEvents, isNoteVisibleInMeasure } =
-    useMidiRollData({
-      layers,
-      meter,
-      totalMeasures,
-      musicalKey,
-      layerIds: Object.keys(layers) as LayerId[],
-    });
+  const {
+    beatsPerMeasure,
+    beatLength,
+    combinedNoteEvents,
+    isNoteVisibleInMeasure,
+  } = useMidiRollData({
+    layers,
+    meter,
+    totalMeasures,
+    musicalKey,
+    layerIds: Object.keys(layers) as LayerId[],
+  });
 
-  const rollProps = { combinedNoteEvents, isNoteVisibleInMeasure, beatsPerMeasure, beatLength };
+  const rollProps = {
+    combinedNoteEvents,
+    isNoteVisibleInMeasure,
+    beatsPerMeasure,
+    beatLength,
+  };
 
   return (
     <div className="midi-view midi-view-on">
@@ -34,7 +43,9 @@ export default function MidiRoll() {
         <div className="midi-roll-area">
           <div className="combined-roll-stack">
             <CombinedRoll rollSlot={1} {...rollProps} />
-            {midiRollCount === 2 && <CombinedRoll rollSlot={2} {...rollProps} />}
+            {midiRollCount === 2 && (
+              <CombinedRoll rollSlot={2} {...rollProps} />
+            )}
           </div>
         </div>
       </div>

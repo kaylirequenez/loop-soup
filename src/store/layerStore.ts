@@ -4,11 +4,11 @@ import type {
   LayerId,
   LayerKnobEffect,
   LayerLoopId,
+  LayerStoreState,
   LayerLoopInstance,
-  LayersState,
+  LoopInstanceId,
   RepeatUnit,
 } from "../types/layer";
-import type { LoopInstanceId } from "../types/layer";
 import {
   DEFAULT_LAYERS,
   mergePersistedLayers,
@@ -17,6 +17,7 @@ import {
 
 import { clamp } from "../utils";
 import {
+  canShiftLoopNotesOctaveBy,
   isRepeatDisabledForUnit,
   getRepeatEveryForUnit,
 } from "../utils/layerState";
@@ -25,17 +26,57 @@ export const LAYER_STORE_KEY = "loop-soup-layers";
 
 const initialLayers = DEFAULT_LAYERS;
 
-/** Update a single instance within the immutable layers tree. */
+/**
+ * Purpose:
+ * Normalizes repeatCount so persisted and runtime values always use nullable integers.
+ *
+ * Behavior:
+ * - Converts null/undefined/non-finite values to null.
+ * - Floors finite values and clamps to >= 0.
+ *
+ * Inputs:
+ * - value: candidate repeat count from UI/persistence.
+ *
+ * Output:
+ * - Normalized repeat count or null.
+ *
+ * Invariants:
+ * - Returned number is always a non-negative integer.
+ */
+function sanitizeRepeatCount(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  if (!Number.isFinite(value)) return null;
+  return Math.max(0, Math.floor(value));
+}
+
+/**
+ * Purpose:
+ * Applies a partial patch to one loop instance in the immutable layers tree.
+ *
+ * Behavior:
+ * - Returns original layers when any addressed entity is missing.
+ * - Rebuilds only the branch needed for the updated instance.
+ *
+ * Inputs:
+ * - layers/layerId/loopId/instanceId: entity path to update.
+ * - update: fields to merge into the target instance.
+ *
+ * Output:
+ * - New LayersState with the patched instance, or original object.
+ *
+ * Invariants:
+ * - Never mutates existing state objects.
+ */
 function updateInstanceInLayers(
-  layers: LayersState,
+  layers: LayerStoreState["layers"],
   layerId: LayerId,
-  LayerLoopId: LayerLoopId,
+  loopId: LayerLoopId,
   instanceId: LoopInstanceId,
   update: Partial<LayerLoopInstance>,
-): LayersState {
+): LayerStoreState["layers"] {
   const layer = layers[layerId];
   if (!layer) return layers;
-  const loop = layer.layerLoops[LayerLoopId];
+  const loop = layer.layerLoops[loopId];
   if (!loop) return layers;
   const instance = loop.loopInstances[instanceId];
   if (!instance) return layers;
@@ -45,7 +86,7 @@ function updateInstanceInLayers(
       ...layer,
       layerLoops: {
         ...layer.layerLoops,
-        [LayerLoopId]: {
+        [loopId]: {
           ...loop,
           loopInstances: {
             ...loop.loopInstances,
@@ -55,79 +96,6 @@ function updateInstanceInLayers(
       },
     },
   };
-}
-
-export interface LayerStoreState {
-  layers: LayersState;
-
-  setLayerVolume: (id: LayerId, volume: number) => void;
-  setLayerSoundId: (id: LayerId, soundId: string | null) => void;
-  setLayerKnobValue: (
-    id: LayerId,
-    effect: LayerKnobEffect,
-    value: number,
-  ) => void;
-
-  addLoopInstance: (
-    layerId: LayerId,
-    LayerLoopId: LayerLoopId,
-    loopInstance: {
-      id: LoopInstanceId;
-      startBeat: number;
-      repeatUnit?: RepeatUnit;
-      repeatEveryMeasuresMemory?: number | null;
-      repeatEveryBeatsMemory?: number | null;
-      repeatEndBeat?: number | null;
-    },
-  ) => void;
-
-  duplicateLoopInstance: (
-    layerId: LayerId,
-    LayerLoopId: LayerLoopId,
-    sourceLoopInstanceId: LoopInstanceId,
-    nextLoopInstanceId: LoopInstanceId,
-    nextStartBeat: number,
-  ) => void;
-
-  setLoopSoundId: (
-    layerId: LayerId,
-    LayerLoopId: LayerLoopId,
-    soundId: string | null,
-  ) => void;
-
-  setLoopKnobValue: (
-    layerId: LayerId,
-    LayerLoopId: LayerLoopId,
-    effect: LayerKnobEffect,
-    value: number,
-  ) => void;
-
-  shiftLoopNotesOctave: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    delta: number,
-  ) => void;
-
-  setLoopInstanceRepeatUnit: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
-    unit: RepeatUnit,
-    beatsPerMeasure: number,
-  ) => void;
-  toggleLoopInstanceRepeatEvery: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
-    value: number,
-    beatsPerMeasure: number,
-  ) => void;
-  setLoopInstanceStartBeat: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
-    startBeat: number,
-  ) => void;
 }
 
 /**
@@ -191,10 +159,10 @@ export const useLayerStore = create<LayerStoreState>()(
           },
         })),
 
-      addLoopInstance: (layerId, LayerLoopId, loopInstance) =>
+      addLoopInstance: (layerId, loopId, loopInstance) =>
         set((state) => {
           const layer = state.layers[layerId];
-          const loop = layer.layerLoops[LayerLoopId];
+          const loop = layer.layerLoops[loopId];
           if (!loop) return state;
           return {
             layers: {
@@ -203,7 +171,7 @@ export const useLayerStore = create<LayerStoreState>()(
                 ...layer,
                 layerLoops: {
                   ...layer.layerLoops,
-                  [LayerLoopId]: {
+                  [loopId]: {
                     ...loop,
                     loopInstances: {
                       ...loop.loopInstances,
@@ -215,7 +183,7 @@ export const useLayerStore = create<LayerStoreState>()(
                           loopInstance.repeatEveryMeasuresMemory ?? null,
                         repeatEveryBeatsMemory:
                           loopInstance.repeatEveryBeatsMemory ?? null,
-                        repeatEndBeat: loopInstance.repeatEndBeat ?? null,
+                        repeatCount: sanitizeRepeatCount(loopInstance.repeatCount),
                       },
                     },
                   },
@@ -227,22 +195,18 @@ export const useLayerStore = create<LayerStoreState>()(
 
       duplicateLoopInstance: (
         layerId,
-        LayerLoopId,
+        loopId,
         sourceLoopInstanceId,
         nextLoopInstanceId,
         nextStartBeat,
       ) =>
         set((state) => {
           const layer = state.layers[layerId];
-          const loop = layer.layerLoops[LayerLoopId];
+          const loop = layer.layerLoops[loopId];
           const source = loop?.loopInstances[sourceLoopInstanceId];
           if (!source) {
             return state;
           }
-          const nextRepeatEndBeat =
-            typeof source.repeatEndBeat === "number"
-              ? nextStartBeat + (source.repeatEndBeat - source.startBeat)
-              : null;
           return {
             layers: {
               ...state.layers,
@@ -250,7 +214,7 @@ export const useLayerStore = create<LayerStoreState>()(
                 ...layer,
                 layerLoops: {
                   ...layer.layerLoops,
-                  [LayerLoopId]: {
+                  [loopId]: {
                     ...loop,
                     loopInstances: {
                       ...loop.loopInstances,
@@ -258,7 +222,7 @@ export const useLayerStore = create<LayerStoreState>()(
                         ...source,
                         id: nextLoopInstanceId,
                         startBeat: nextStartBeat,
-                        repeatEndBeat: nextRepeatEndBeat,
+                        repeatCount: sanitizeRepeatCount(source.repeatCount),
                       },
                     },
                   },
@@ -268,7 +232,7 @@ export const useLayerStore = create<LayerStoreState>()(
           };
         }),
 
-      setLoopSoundId: (layerId, LayerLoopId, soundId) =>
+      setLoopSoundId: (layerId, loopId, soundId) =>
         set((state) => ({
           layers: {
             ...state.layers,
@@ -276,10 +240,10 @@ export const useLayerStore = create<LayerStoreState>()(
               ...state.layers[layerId],
               layerLoops: {
                 ...state.layers[layerId].layerLoops,
-                [LayerLoopId]: {
-                  ...state.layers[layerId].layerLoops[LayerLoopId],
+                [loopId]: {
+                  ...state.layers[layerId].layerLoops[loopId],
                   mapping: {
-                    ...state.layers[layerId].layerLoops[LayerLoopId].mapping,
+                    ...state.layers[layerId].layerLoops[loopId].mapping,
                     soundId,
                   },
                 },
@@ -288,7 +252,7 @@ export const useLayerStore = create<LayerStoreState>()(
           },
         })),
 
-      setLoopKnobValue: (layerId, LayerLoopId, effect, value) =>
+      setLoopKnobValue: (layerId, loopId, effect, value) =>
         set((state) => ({
           layers: {
             ...state.layers,
@@ -296,15 +260,15 @@ export const useLayerStore = create<LayerStoreState>()(
               ...state.layers[layerId],
               layerLoops: {
                 ...state.layers[layerId].layerLoops,
-                [LayerLoopId]: {
-                  ...state.layers[layerId].layerLoops[LayerLoopId],
+                [loopId]: {
+                  ...state.layers[layerId].layerLoops[loopId],
                   mapping: {
-                    ...state.layers[layerId].layerLoops[LayerLoopId].mapping,
+                    ...state.layers[layerId].layerLoops[loopId].mapping,
                     knobsByEffect: {
-                      ...state.layers[layerId].layerLoops[LayerLoopId].mapping
+                      ...state.layers[layerId].layerLoops[loopId].mapping
                         .knobsByEffect,
                       [effect]: {
-                        ...state.layers[layerId].layerLoops[LayerLoopId].mapping
+                        ...state.layers[layerId].layerLoops[loopId].mapping
                           .knobsByEffect[effect],
                         value: clamp(value, 0, 1),
                       },
@@ -319,6 +283,7 @@ export const useLayerStore = create<LayerStoreState>()(
       shiftLoopNotesOctave: (layerId, loopId, delta) => {
         const loop = get().layers[layerId]?.layerLoops[loopId];
         if (!loop) return;
+        if (!canShiftLoopNotesOctaveBy(loop.definition.notes, delta)) return;
         const notes = loop.definition.notes.map((n) => ({
           ...n,
           octave: n.octave + delta,
@@ -409,7 +374,7 @@ export const useLayerStore = create<LayerStoreState>()(
                 unit === "measures" ? null : instance.repeatEveryMeasuresMemory,
               repeatEveryBeatsMemory:
                 unit === "beats" ? null : instance.repeatEveryBeatsMemory,
-              repeatEndBeat: null,
+              repeatCount: null,
             };
           } else {
             update = {
@@ -440,11 +405,6 @@ export const useLayerStore = create<LayerStoreState>()(
               instanceId
             ];
           if (!instance) return state;
-          const nextEnd =
-            instance.repeatEndBeat != null &&
-            instance.repeatEndBeat <= startBeat
-              ? startBeat + 1
-              : instance.repeatEndBeat;
           return {
             layers: updateInstanceInLayers(
               state.layers,
@@ -453,7 +413,6 @@ export const useLayerStore = create<LayerStoreState>()(
               instanceId,
               {
                 startBeat,
-                repeatEndBeat: nextEnd,
               },
             ),
           };

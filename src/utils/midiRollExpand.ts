@@ -1,6 +1,10 @@
 import type { LayerLoopInstance, RepeatUnit } from "../types/layer";
 import { getRepeatEveryForUnit } from "./layerState";
 
+/**
+ * Purpose:
+ * Converts repeat configuration into beat-step distance between phrase starts.
+ */
 function repeatIntervalBeats(
   repeatUnit: RepeatUnit,
   repeatEvery: number | null,
@@ -9,15 +13,13 @@ function repeatIntervalBeats(
   if (repeatEvery == null) {
     return null;
   }
-  const every = Math.max(1, Math.floor(repeatEvery));
-  const bpm = Math.max(1, beatsPerMeasure);
-  return repeatUnit === "beats" ? every : every * bpm;
+  return repeatUnit === "beats" ? repeatEvery : repeatEvery * beatsPerMeasure;
 }
 
 /**
  * Returns beat offsets (relative to instance.startBeat) at which the
  * span-length phrase tiles within the composition, respecting repeatEvery
- * and repeatEndBeat.
+ * and repeatCount.
  */
 export function repeatOffsetsFromLoop(
   instance: LayerLoopInstance,
@@ -25,35 +27,30 @@ export function repeatOffsetsFromLoop(
   beatsPerMeasure: number,
   compositionBeats: number,
 ): number[] {
-  const span = Math.max(1, Math.floor(spanBeats) || 1);
   const G = instance.startBeat;
   const repeatStep = repeatIntervalBeats(
     instance.repeatUnit,
     getRepeatEveryForUnit(instance.repeatUnit, instance),
     beatsPerMeasure,
   );
+  if (repeatStep == null) return [0];
 
-  const maxEnd = Math.max(1, compositionBeats);
-  const offsets = new Set([0]);
+  // Extra repeats that can fully fit before composition end.
+  const maxByComposition = Math.max(
+    0,
+    Math.floor((compositionBeats - G - spanBeats + 1e-6) / repeatStep),
+  );
+  const requestedCount = instance.repeatCount;
+  const effectiveCount =
+    requestedCount == null
+      ? maxByComposition
+      : Math.min(requestedCount, maxByComposition);
 
-  const addWhileFits = (o: number) => {
-    if (o < 0) return;
-    if (G + o + span <= maxEnd + 1e-6 && G + o < compositionBeats + 1e-6) {
-      offsets.add(o);
-    }
-  };
-
-  if (repeatStep != null) {
-    for (let k = 0; k < 64; k++) {
-      const base = k * repeatStep;
-      if (G + base >= compositionBeats) break;
-      if (instance.repeatEndBeat != null && G + base >= instance.repeatEndBeat)
-        break;
-      addWhileFits(base);
-    }
+  const offsets = [0];
+  for (let k = 1; k <= effectiveCount; k += 1) {
+    offsets.push(k * repeatStep);
   }
-
-  return [...offsets].sort((a, b) => a - b);
+  return offsets;
 }
 
 /**
@@ -70,9 +67,18 @@ export function expandBaseNotesToComposition<
   spanBeats: number,
   beatsPerMeasure: number,
   compositionBeats: number,
-): (T & { beatIndex: number; startInBeat: number; lengthInBeat: number; _off: number })[] {
-  const bpm = Math.max(1, beatsPerMeasure);
-  const offsets = repeatOffsetsFromLoop(instance, spanBeats, bpm, compositionBeats);
+): (T & {
+  beatIndex: number;
+  startInBeat: number;
+  lengthInBeat: number;
+  _off: number;
+})[] {
+  const offsets = repeatOffsetsFromLoop(
+    instance,
+    spanBeats,
+    beatsPerMeasure,
+    compositionBeats,
+  );
   const G = instance.startBeat;
   const out = [];
 

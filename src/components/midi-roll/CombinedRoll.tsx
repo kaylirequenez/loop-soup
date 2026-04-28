@@ -5,7 +5,7 @@ import { useLayerEditorStore } from "../../store/layerEditorStore";
 import { useLayerPlaybackStore } from "../../store/layerPlaybackStore";
 import { useCompositionStore } from "../../store/compositionStore";
 import { buildOverlapHeightStackRects } from "./midiRollLayout";
-import { useMidiPlayheadScrub } from "./useMidiPlayheadScrub";
+import { usePlayheadDrag } from "../../hooks/usePlayheadDrag";
 import { MidiRollNote } from "./MidiRollNote";
 import { Nowbar } from "../Nowbar";
 import { chromaticOctaveRows } from "../../utils/pitch";
@@ -51,7 +51,6 @@ export function CombinedRoll({
     })),
   );
   const manualMutes = useLayerPlaybackStore((s) => s.manualMutes);
-  const handlePlayheadPointerDown = useMidiPlayheadScrub();
   const rowLabels = useMemo(() => chromaticOctaveRows(musicalKey), [musicalKey]);
 
   const measureCount = Math.max(1, Math.ceil(beatLength / beatsPerMeasure));
@@ -64,11 +63,26 @@ export function CombinedRoll({
   const stripWidthPct =
     measureCount > 0 ? (measureCount / visibleMeasureCount) * 100 : 100;
   const rightmostVisibleMeasureIdx = midiViewMeasureIndex + visibleMeasureCount - 1;
+  const handlePlayheadDrag = usePlayheadDrag<HTMLDivElement>({
+    getBeatWindow: () => {
+      const startBeat = midiViewMeasureIndex * beatsPerMeasure;
+      const endBeat = Math.min(
+        beatLength,
+        (midiViewMeasureIndex + visibleMeasureCount) * beatsPerMeasure,
+      );
+      return { startBeat, endBeat };
+    },
+    onSeek: useMidiStore.getState().setMidiPlayheadBeat,
+  });
 
   return (
     <div className="combined-roll-panel">
       <div className="combined-roll-wrap">
-        <div className="midi-roll-viewport">
+        <div
+          className="midi-roll-viewport"
+          onPointerDown={handlePlayheadDrag}
+          aria-label="Seek playhead"
+        >
           <div
             className="midi-roll-strip"
             style={{
@@ -132,12 +146,12 @@ export function CombinedRoll({
                       placementOk &&
                       selectedLoopId != null &&
                       inSelectedLayer &&
-                      rect.LayerLoopId === selectedLoopId;
+                      rect.layerLoopId === selectedLoopId;
                     const dimSameLayerOtherLoop =
                       placementOk &&
                       selectedLoopId != null &&
                       inSelectedLayer &&
-                      rect.LayerLoopId !== selectedLoopId;
+                      rect.layerLoopId !== selectedLoopId;
                     return (
                       <MidiRollNote
                         key={`r${rollSlot}-${rect.noteKey}-${mIdx}-${index}`}
@@ -155,7 +169,6 @@ export function CombinedRoll({
                     startBeat={mIdx * beatsPerMeasure}
                     endBeat={(mIdx + 1) * beatsPerMeasure}
                     className="mroll-ph"
-                    onPointerDown={handlePlayheadPointerDown}
                   />
                 </div>
               </div>

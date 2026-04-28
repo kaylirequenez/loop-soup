@@ -13,41 +13,19 @@ import type {
   MidiLayerPlacement,
   MidiLoopRollPlacementMap,
   MidiRollPlacement,
+  MidiStoreState,
   RollSlot,
 } from "../types/midi";
-
-export interface MidiState {
-  midiRollCount: number;
-  midiRollSplitByRootOctave: boolean;
-  midiMeasuresVisible: number;
-  midiViewMeasureIndex: number;
-  midiPlayheadBeat: number;
-  midiLoopRollPlacement: MidiLoopRollPlacementMap;
-  midiLayerPlacement: MidiLayerPlacement;
-
-  toggleSecondRoll: () => void;
-  setMidiRollSplitByRootOctave: (enabled: boolean) => void;
-  setMidiMeasuresVisible: (value: number) => void;
-  setMidiViewMeasureIndex: (value: number) => void;
-  setMidiPlayheadBeat: (beat: number) => void;
-  setMidiLayerRollPlacement: (
-    layerId: LayerId,
-    placement: MidiRollPlacement,
-  ) => void;
-  setMidiLoopRollPlacement: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    placement: MidiRollPlacement,
-  ) => void;
-  isNoteOnRoll: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    storedOctave: number,
-    rollSlot: RollSlot,
-  ) => boolean;
-}
-
-export const useMidiStore = create<MidiState>()(
+/**
+ * Midi store
+ *
+ * Owns persisted MIDI-view and playhead state:
+ * - roll split/count layout
+ * - visible measure window
+ * - roll placement routing
+ * - current composition playhead beat
+ */
+export const useMidiStore = create<MidiStoreState>()(
   persist(
     (set, get) => ({
       midiRollCount: 1,
@@ -73,7 +51,16 @@ export const useMidiStore = create<MidiState>()(
           midiRollCount: 2,
         })),
 
-      setMidiMeasuresVisible: (value) => set({ midiMeasuresVisible: value }),
+      setMidiMeasuresVisible: (value) =>
+        set((state) => {
+          const { totalMeasures } = useCompositionStore.getState();
+          const maxStart = totalMeasures - value;
+          const nextStart = Math.min(state.midiViewMeasureIndex, maxStart);
+          return {
+            midiMeasuresVisible: value,
+            midiViewMeasureIndex: nextStart,
+          };
+        }),
 
       setMidiViewMeasureIndex: (value) => set({ midiViewMeasureIndex: value }),
 
@@ -123,8 +110,11 @@ export const useMidiStore = create<MidiState>()(
         }),
 
       isNoteOnRoll: (layerId, loopId, storedOctave, rollSlot) => {
-        const { midiRollCount, midiRollSplitByRootOctave, midiLoopRollPlacement } =
-          get();
+        const {
+          midiRollCount,
+          midiRollSplitByRootOctave,
+          midiLoopRollPlacement,
+        } = get();
         if (midiRollCount < 2) return true;
         if (midiRollSplitByRootOctave) {
           const { octave } = useCompositionStore.getState();
@@ -161,7 +151,7 @@ export const useMidiStore = create<MidiState>()(
             p.midiPlayheadBeat,
             beatLength,
           ),
-        } as MidiState;
+        } as MidiStoreState;
       },
     },
   ),

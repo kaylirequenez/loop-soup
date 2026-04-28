@@ -1,10 +1,9 @@
 import { useShallow } from "zustand/react/shallow";
-import { useMidiStore } from "../store/midiStore";
-import { useCompositionStore } from "../store/compositionStore";
-import { compositionLoopBeatLength } from "../utils/compositionState";
-import { playheadMeasureIndex } from "../utils/midiTransport";
-import { snapPlayheadToView } from "../utils/midiTransport";
-import type { AppView } from "../types/app";
+import { useMidiStore } from "../../store/midiStore";
+import { useCompositionStore } from "../../store/compositionStore";
+import { playheadMeasureIndex } from "../../utils/midiTransport";
+import { snapPlayheadToView } from "../../utils/midiTransport";
+import type { AppView } from "../../types/app";
 
 interface MidiMeasureNavProps {
   currentView: AppView;
@@ -37,21 +36,15 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
     })),
   );
   const beatsPerMeasure = meter.beatsPerMeasure;
-  const beatLength = compositionLoopBeatLength(totalMeasures, beatsPerMeasure);
-  const measureCount = Math.max(1, Math.ceil(beatLength / beatsPerMeasure));
-  const maxStart = Math.max(0, measureCount - midiMeasuresVisible);
-  const currentStart = Math.max(0, Math.min(maxStart, midiViewMeasureIndex));
-  const playheadMeasureIdx = playheadMeasureIndex(midiPlayheadBeat, beatsPerMeasure);
+  const maxStart = Math.max(0, totalMeasures - midiMeasuresVisible);
+  const currentStart = Math.min(maxStart, midiViewMeasureIndex);
+  const playheadMeasureIdx = playheadMeasureIndex(
+    midiPlayheadBeat,
+    beatsPerMeasure,
+  );
   const playheadNotInView =
     playheadMeasureIdx < currentStart ||
     playheadMeasureIdx >= currentStart + midiMeasuresVisible;
-
-  const show =
-    (currentView === "midi" || currentView === "dual") &&
-    beatLength > beatsPerMeasure;
-  if (!show) {
-    return null;
-  }
 
   const handleSnapPlayhead = () => snapPlayheadToView(currentStart);
 
@@ -61,7 +54,7 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
         type="button"
         className="midi-measure-btn"
         disabled={currentStart <= 0}
-        onClick={() => setMidiViewMeasureIndex(Math.max(0, currentStart - 1))}
+        onClick={() => setMidiViewMeasureIndex(currentStart - 1)}
         aria-label="previous measure"
       >
         ←
@@ -73,9 +66,7 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
         type="button"
         className="midi-measure-btn"
         disabled={currentStart >= maxStart}
-        onClick={() =>
-          setMidiViewMeasureIndex(Math.min(maxStart, currentStart + 1))
-        }
+        onClick={() => setMidiViewMeasureIndex(currentStart + 1)}
         aria-label="next measure"
       >
         →

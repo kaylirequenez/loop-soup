@@ -1,33 +1,20 @@
-import { Fragment, useCallback, useMemo, useRef } from "react";
+import { Fragment, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
-import {
-  listLayerLoopInstancesSorted,
-} from "../lib/layerRuntime";
+import { listLayerLoopInstancesSorted } from "../utils/layerState";
 import { useMidiStore } from "../store/midiStore";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
 import { repeatOffsetsFromLoop } from "../utils/midiRollExpand";
-import { usePointerDrag } from "../hooks/usePointerDrag";
+import { usePlayheadDrag } from "../hooks/usePlayheadDrag";
 import { Nowbar } from "./Nowbar";
+import { RollPlacementButtons } from "./midi-settings/RollPlacementButtons";
 import type { LayerLoop, LayerLoopInstance } from "../types/layer";
-import type { MidiRollPlacement } from "../types/midi";
 import { compositionLoopBeatLength } from "../utils/compositionState";
 
 const MAX_VISIBLE_ROWS = 6;
-const LOOP_ROLL_PLACEMENT_UI: Array<{
-  key: string;
-  value: MidiRollPlacement;
-  label: string;
-  title: string;
-}> = [
-  { key: "1", value: "1", label: "1", title: "Show on roll 1 only" },
-  { key: "2", value: "2", label: "2", title: "Show on roll 2 only" },
-  { key: "both", value: "both", label: "1+2", title: "Show on both rolls" },
-];
-
 function rowHeightForLoopCount(loopCount: number) {
   if (loopCount <= 1) return 24;
   if (loopCount === 2) return 20;
@@ -130,37 +117,17 @@ export default function CompositionView() {
     return loops.findIndex((loop) => loop.id === selectedLoopId);
   }, [selectedLoopId, loops]);
 
-  const rulerWasPlayingRef = useRef(false);
-
-  const getBeat = useCallback(
-    (el: HTMLElement, clientX: number) => {
-      const rect = el.getBoundingClientRect();
-      const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      return Math.min(frac * compositionBeats, compositionBeats - 1e-6);
+  const handleRulerDrag = usePlayheadDrag<HTMLDivElement>({
+    getBeatWindow: () => ({ startBeat: 0, endBeat: compositionBeats }),
+    onSeek: setMidiPlayheadBeat,
+    onResume: () => {
+      useTransportStore.getState().bumpTransportNonce();
     },
-    [compositionBeats],
-  );
-
-  const handleRulerDrag = usePointerDrag<HTMLDivElement>({
-    onStart: (el, event) => {
-      const t = useTransportStore.getState();
-      rulerWasPlayingRef.current = t.isPlaying;
-      if (t.isPlaying) t.setPlaying(false);
-      setMidiPlayheadBeat(getBeat(el, event.clientX));
-    },
-    onMove: (el, event) => {
-      setMidiPlayheadBeat(getBeat(el, event.clientX));
-    },
-    onEnd: () => {
+    onDragEnd: () => {
       const beat = useMidiStore.getState().midiPlayheadBeat;
       const targetMeasure = Math.floor(beat / beatsPerMeasure);
       const maxStart = Math.max(0, totalMeasures - midiMeasuresVisible);
       setMidiViewMeasureIndex(Math.max(0, Math.min(maxStart, targetMeasure)));
-      if (rulerWasPlayingRef.current) {
-        const t = useTransportStore.getState();
-        t.setPlaying(true);
-        t.bumpTransportNonce();
-      }
     },
   });
 
@@ -273,7 +240,11 @@ export default function CompositionView() {
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleInstanceSelection(selectedLayerId, loop.id, instance.id);
+                        toggleInstanceSelection(
+                          selectedLayerId,
+                          loop.id,
+                          instance.id,
+                        );
                       }}
                       aria-pressed={isInstanceSelected}
                     />
@@ -284,29 +255,16 @@ export default function CompositionView() {
             {showRollPlacement && (
               <div
                 className="comp-roll-placement"
-                role="group"
-                aria-label={`MIDI roll assignment for loop ${idx + 1}`}
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                {LOOP_ROLL_PLACEMENT_UI.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    className={`comp-roll-placement-btn ${rollPlacement === opt.value ? "comp-roll-placement-btn--on" : ""}`}
-                    title={opt.title}
-                    aria-pressed={rollPlacement === opt.value}
-                    onClick={() =>
-                      setMidiLoopRollPlacement(
-                        selectedLayerId,
-                        loop.id,
-                        opt.value,
-                      )
-                    }
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+                <RollPlacementButtons
+                  value={rollPlacement}
+                  ariaLabel={`MIDI roll assignment for loop ${idx + 1}`}
+                  onChange={(placement) =>
+                    setMidiLoopRollPlacement(selectedLayerId, loop.id, placement)
+                  }
+                />
               </div>
             )}
           </Fragment>

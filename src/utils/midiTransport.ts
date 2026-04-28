@@ -25,12 +25,10 @@ export function snapPlayheadToView(viewMeasureIndex: number): void {
 }
 
 /**
- * 0-based measure index for a beat position, clamped to [0, measureCount - 1].
- * Assumes `beat` has already been validated into [0, beatLength) by wrapBeat.
+ * 0-based measure index for a beat position.
  *
- * @param beat - Current playhead beat, in [0, beatLength).
+ * @param beat - Current playhead beat; should be in [0, beatLength) from wrapBeat.
  * @param beatsPerMeasure - Beats per measure from the composition meter.
- * @param measureCount - Total number of measures (ceil(beatLength / beatsPerMeasure)).
  */
 export function playheadMeasureIndex(
   beat: number,
