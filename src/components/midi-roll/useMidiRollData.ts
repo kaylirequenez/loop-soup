@@ -1,16 +1,15 @@
 import { useMemo } from "react";
-import { useMidiStore } from "../../store/midiStore";
 import { pitchClassRowIndex } from "../../utils/pitch";
 import { compositionLoopBeatLength } from "../../utils/compositionState";
-import { expandBaseNotesToComposition } from "../../utils/midiRollExpand";
+import { repeatOffsetsFromLoop } from "../../utils/midiRollExpand";
 import { listLayerLoopInstancesSorted } from "../../utils/layerState";
 import type { LayerId, LayersState } from "../../types/layer";
-import type { CombinedNoteEvent, RollSlot } from "../../types/midi";
-import type { Meter, MusicalKey } from "../../types/composition";
+import type { CombinedNoteEvent } from "../../types/midi";
+import type { MusicalKey } from "../../types/composition";
 
 interface MidiRollDataParams {
   layers: LayersState;
-  meter: Meter;
+  beatsPerMeasure: number;
   totalMeasures: number;
   musicalKey: MusicalKey;
   layerIds: LayerId[];
@@ -18,12 +17,11 @@ interface MidiRollDataParams {
 
 export function useMidiRollData({
   layers,
-  meter,
+  beatsPerMeasure,
   totalMeasures,
   musicalKey,
   layerIds,
 }: MidiRollDataParams) {
-  const beatsPerMeasure = meter.beatsPerMeasure;
   const beatLength = compositionLoopBeatLength(totalMeasures, beatsPerMeasure);
 
   const combinedNoteEvents = useMemo<CombinedNoteEvent[]>(() => {
@@ -37,37 +35,53 @@ export function useMidiRollData({
         const { notes: rawNotes, spanBeats } = loop.definition;
         const instances = listLayerLoopInstancesSorted(loop);
         for (const instance of instances) {
-          const baseNotes = rawNotes.map((note, noteIndex) => ({
-            ...note,
-            noteIndex,
-            layer: layer as LayerId,
-            loopIndex,
-          }));
-          const expanded = expandBaseNotesToComposition(
-            baseNotes,
+          const offsets = repeatOffsetsFromLoop(
             instance,
             spanBeats,
             beatsPerMeasure,
             beatLength,
           );
-          for (const expandedNote of expanded) {
-            const { _off, ...rest } = expandedNote;
-            const storedOctave = expandedNote.octave ?? 3;
-            const globalStart =
-              expandedNote.beatIndex + expandedNote.startInBeat;
-            const globalEnd = globalStart + expandedNote.lengthInBeat;
-            out.push({
-              ...rest,
-              layer: layer as LayerId,
-              loopIndex,
-              layerLoopId,
-              storedOctave,
-              noteKey: `${layer}-${layerLoopId}-${instance.id}-${expandedNote.pitchClass}-${storedOctave}-${expandedNote.beatIndex}-${expandedNote.startInBeat}-${expandedNote.lengthInBeat}-${_off}`,
-              instanceOffset: _off,
-              globalStart,
-              globalEnd,
-              rowIndex: pitchClassRowIndex(expandedNote.pitchClass, musicalKey),
-            });
+          const G = instance.startBeat;
+          const loopInstanceId = instance.id;
+
+          for (let noteIndex = 0; noteIndex < rawNotes.length; noteIndex += 1) {
+            const note = rawNotes[noteIndex];
+            const lb = Math.max(0, Math.floor(note.beatIndex) || 0);
+            const s0 = note.startInBeat;
+            const len = note.lengthInBeat;
+
+            for (const off of offsets) {
+              const rawGlobalStart = G + off + lb + s0;
+              if (rawGlobalStart >= beatLength - 1e-9) continue;
+              const rawGlobalEnd = Math.min(G + off + lb + len, beatLength);
+              if (rawGlobalEnd <= rawGlobalStart + 1e-9) continue;
+
+              const beatIndex = Math.floor(rawGlobalStart);
+              const startInBeat = rawGlobalStart - beatIndex;
+              const lengthInBeat = rawGlobalEnd - rawGlobalStart;
+
+              const storedOctave = note.octave;
+              const globalStart = beatIndex + startInBeat;
+              const globalEnd = globalStart + lengthInBeat;
+
+              out.push({
+                ...note,
+                beatIndex,
+                startInBeat,
+                lengthInBeat,
+                noteIndex,
+                layer: layer as LayerId,
+                loopIndex,
+                layerLoopId,
+                loopInstanceId,
+                storedOctave,
+                noteKey: `${layer}-${layerLoopId}-${instance.id}-${note.pitchClass}-${storedOctave}-${beatIndex}-${startInBeat}-${lengthInBeat}-${off}`,
+                instanceOffset: off,
+                globalStart,
+                globalEnd,
+                rowIndex: pitchClassRowIndex(note.pitchClass, musicalKey),
+              });
+            }
           }
         }
       }
@@ -75,30 +89,5 @@ export function useMidiRollData({
     return out;
   }, [beatLength, beatsPerMeasure, layerIds, layers, musicalKey]);
 
-  const isNoteVisibleInMeasure = useMemo(
-    () =>
-      (note: CombinedNoteEvent, rollSlot: RollSlot, measureIndex: number) => {
-        if (note.beatIndex >= beatLength) return false;
-        if (
-          !useMidiStore
-            .getState()
-            .isNoteOnRoll(
-              note.layer,
-              note.layerLoopId,
-              note.storedOctave,
-              rollSlot,
-            )
-        )
-          return false;
-        return Math.floor(note.beatIndex / beatsPerMeasure) === measureIndex;
-      },
-    [beatLength, beatsPerMeasure],
-  );
-
-  return {
-    beatsPerMeasure,
-    beatLength,
-    combinedNoteEvents,
-    isNoteVisibleInMeasure,
-  };
+  return combinedNoteEvents;
 }

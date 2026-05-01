@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useMidiStore } from "../store/midiStore";
 import { useLayerStore } from "../store/layerStore";
 import { useCompositionStore } from "../store/compositionStore";
+import { compositionLoopBeatLength } from "../utils/compositionState";
 import { useMidiRollData } from "./midi-roll/useMidiRollData";
 import { CombinedRoll } from "./midi-roll/CombinedRoll";
 import type { LayerId } from "../types/layer";
@@ -16,15 +17,12 @@ export default function MidiRoll() {
     })),
   );
   const layers = useLayerStore((s) => s.layers);
+  const beatsPerMeasure = meter.beatsPerMeasure;
+  const beatLength = compositionLoopBeatLength(totalMeasures, beatsPerMeasure);
 
-  const {
-    beatsPerMeasure,
-    beatLength,
-    combinedNoteEvents,
-    isNoteVisibleInMeasure,
-  } = useMidiRollData({
+  const combinedNoteEvents = useMidiRollData({
     layers,
-    meter,
+    beatsPerMeasure,
     totalMeasures,
     musicalKey,
     layerIds: Object.keys(layers) as LayerId[],
@@ -32,7 +30,7 @@ export default function MidiRoll() {
 
   const rollProps = {
     combinedNoteEvents,
-    isNoteVisibleInMeasure,
+    musicalKey,
     beatsPerMeasure,
     beatLength,
   };

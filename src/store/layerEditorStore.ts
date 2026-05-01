@@ -58,14 +58,24 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
     set((state) =>
       state.selectedLayerId === layerId && state.selectedLoopId === loopId
         ? { selectedLoopId: null, selectedInstanceId: null }
-        : { selectedLayerId: layerId, selectedLoopId: loopId, selectedInstanceId: null },
+        : {
+            selectedLayerId: layerId,
+            selectedLoopId: loopId,
+            selectedInstanceId: null,
+          },
     ),
 
   toggleInstanceSelection: (layerId, loopId, instanceId) =>
     set((state) =>
+      state.selectedLayerId === layerId &&
+      state.selectedLoopId === loopId &&
       state.selectedInstanceId === instanceId
         ? { selectedInstanceId: null }
-        : { selectedLayerId: layerId, selectedLoopId: loopId, selectedInstanceId: instanceId },
+        : {
+            selectedLayerId: layerId,
+            selectedLoopId: loopId,
+            selectedInstanceId: instanceId,
+          },
     ),
 
   clearLoopSelection: () =>

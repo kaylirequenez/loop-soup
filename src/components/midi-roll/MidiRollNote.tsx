@@ -1,52 +1,34 @@
 import type { KeyboardEvent, PointerEvent } from "react";
-import type { RollSlot } from "../../types/midi";
 import type { NoteRect } from "./midiRollLayout";
 import { useLayerEditorStore } from "../../store/layerEditorStore";
-import { useMidiStore } from "../../store/midiStore";
 
 interface MidiRollNoteProps {
   rect: NoteRect;
-  inSelectedLayer: boolean;
   inSelectedLoop: boolean;
+  inSelectedLayer: boolean;
   dimSameLayerOtherLoop: boolean;
   isMuted: boolean;
-  rollSlot: RollSlot;
 }
 
 export function MidiRollNote({
   rect,
-  inSelectedLayer,
   inSelectedLoop,
+  inSelectedLayer,
   dimSameLayerOtherLoop,
   isMuted,
-  rollSlot,
 }: MidiRollNoteProps) {
   const tap = () => {
     const layerId = rect.layer;
     const loopId = rect.layerLoopId;
-    const editorState = useLayerEditorStore.getState();
-    const isSelected =
-      editorState.selectedLayerId === layerId &&
-      editorState.selectedLoopId === loopId;
-    editorState.toggleLoopSelection(layerId, loopId);
-    if (!isSelected) {
-      const midiState = useMidiStore.getState();
-      if (!midiState.midiRollSplitByRootOctave && midiState.midiRollCount >= 2) {
-        midiState.setMidiLayerRollPlacement(layerId, rollSlot === 1 ? "1" : "2");
-      }
-    }
+    const instanceId = rect.loopInstanceId;
+    useLayerEditorStore
+      .getState()
+      .toggleInstanceSelection(layerId, loopId, instanceId);
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
-    if (event.pointerType !== "mouse" || event.button === 0) tap();
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      tap();
-    }
+    tap();
   };
 
   return (
@@ -66,7 +48,6 @@ export function MidiRollNote({
         height: `${rect.heightPct}%`,
       }}
       onPointerDown={onPointerDown}
-      onKeyDown={onKeyDown}
     >
       {inSelectedLoop && (
         <span className="mnote-octave-badge">{rect.storedOctave}</span>

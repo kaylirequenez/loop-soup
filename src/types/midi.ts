@@ -1,4 +1,4 @@
-import type { LayerId, LayerLoopId, LoopNote } from "./layer";
+import type { LayerId, LayerLoopId, LoopInstanceId, LoopNote } from "./layer";
 
 export type RollSlot = 1 | 2;
 
@@ -58,6 +58,8 @@ export interface CombinedNoteEvent extends LoopNote {
   loopIndex: number;
   /** Stable loop id in layer storage. */
   layerLoopId: LayerLoopId;
+  /** Stable instance id in layer storage. */
+  loopInstanceId: LoopInstanceId;
   /** 0-based note index inside the loop definition note array. */
   noteIndex: number;
   /** Effective octave used for roll split/routing decisions. */
