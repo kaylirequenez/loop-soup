@@ -7,4 +7,6 @@ export interface LayerEditorState {
   selectedLoopId: LayerLoopId | null;
   /** Set only when a specific instance is selected; implies selectedLoopId is set. */
   selectedInstanceId: LoopInstanceId | null;
+  /** True while the user is actively recording a new loop. */
+  isRecordingLoop: boolean;
 }

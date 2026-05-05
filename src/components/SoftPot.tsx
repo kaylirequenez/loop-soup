@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { clamp } from "../utils";
 import { useCompositionStore } from "../store/compositionStore";
@@ -8,7 +8,11 @@ import {
   LOOP_NOTE_MIDI_MIN,
   softpotChromoRows,
 } from "../utils/pitch";
+import type { LayerId, LayerLoopId } from "../types/layer";
 import { useLayerEditorStore } from "../store/layerEditorStore";
+import { useLayerStore } from "../store/layerStore";
+import { useTransportStore } from "../store/transportStore";
+import { useMidiStore } from "../store/midiStore";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
@@ -38,6 +42,7 @@ function rowIndexFromClientY(noteColEl: HTMLDivElement, clientY: number) {
 
 export default function SoftPot() {
   const selectedLayer = useLayerEditorStore((s) => s.selectedLayerId);
+  const isRecordingLoop = useLayerEditorStore((s) => s.isRecordingLoop);
   const { octave, musicalKey } = useCompositionStore(
     useShallow((s) => ({
       octave: s.octave,
@@ -67,16 +72,56 @@ export default function SoftPot() {
     const midiFloat = topMidi - (softpotPosition * SOFTPOT_STEPS - 0.5);
     return clamp(midiFloat, LOOP_NOTE_MIDI_MIN, LOOP_NOTE_MIDI_MAX);
   }, [topMidi, softpotPosition]);
-  const currentMidiRounded = useMemo(
-    () =>
-      clamp(
-        Math.round(currentMidiExact),
-        LOOP_NOTE_MIDI_MIN,
-        LOOP_NOTE_MIDI_MAX,
-      ),
-    [currentMidiExact],
-  );
   const [gestureActive, setGestureActive] = useState(false);
+
+  const noteStartBeatRef = useRef<number | null>(null);
+  const capturedMidiRef = useRef<number | null>(null);
+  const recordingTargetRef = useRef<{
+    layerId: LayerId;
+    loopId: LayerLoopId;
+  } | null>(null);
+
+  const captureNoteStart = (midi: number) => {
+    if (isRecordingLoop && useTransportStore.getState().isPlaying) {
+      const editor = useLayerEditorStore.getState();
+      const loopId = editor.selectedLoopId;
+      if (loopId === null) return;
+      const roundedMidi = Math.round(midi);
+      const startBeat = useMidiStore.getState().midiPlayheadBeat;
+      noteStartBeatRef.current = startBeat;
+      capturedMidiRef.current = roundedMidi;
+      recordingTargetRef.current = {
+        layerId: editor.selectedLayerId,
+        loopId,
+      };
+      useLayerStore.getState().addLoopNote(
+        editor.selectedLayerId,
+        loopId,
+        roundedMidi % 12,
+        Math.floor(roundedMidi / 12) - 1,
+        startBeat,
+      );
+    }
+  };
+
+  const commitNote = () => {
+    const target = recordingTargetRef.current;
+    if (
+      target &&
+      noteStartBeatRef.current !== null &&
+      capturedMidiRef.current !== null
+    ) {
+      const endBeat = useMidiStore.getState().midiPlayheadBeat;
+      useLayerStore.getState().endLoopNote(
+        target.layerId,
+        target.loopId,
+        endBeat,
+      );
+    }
+    noteStartBeatRef.current = null;
+    capturedMidiRef.current = null;
+    recordingTargetRef.current = null;
+  };
 
   const setSoftpotToAllowedRow = (targetRow: number) => {
     const clampedRow = clamp(targetRow, allowedMinRow, allowedMaxRow);
@@ -102,6 +147,7 @@ export default function SoftPot() {
   const endGesture = () => {
     setGestureActive(false);
     document.body.classList.remove(DRAG_SELECTION_CLASS);
+    commitNote();
   };
 
   const updateStripFromPointer = (element: HTMLDivElement, clientY: number) => {
@@ -120,6 +166,13 @@ export default function SoftPot() {
     onStart: (element, event) => {
       beginGesture();
       updateStripFromPointer(element, event.clientY);
+      const rect = element.getBoundingClientRect();
+      const relative = clamp(
+        (event.clientY - rect.top) / rect.height,
+        allowedMinPosition,
+        allowedMaxPosition,
+      );
+      captureNoteStart(topMidi - (relative * SOFTPOT_STEPS - 0.5));
     },
     onMove: (element, moveEvent) => {
       updateStripFromPointer(element, moveEvent.clientY);
@@ -132,6 +185,8 @@ export default function SoftPot() {
       beginGesture();
       const row = rowIndexFromClientY(noteCol, event.clientY);
       setSoftpotToAllowedRow(row);
+      const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
+      captureNoteStart(chromoRows[clampedRow].midi);
     },
     onMove: (noteCol, moveEvent) => {
       const row = rowIndexFromClientY(noteCol, moveEvent.clientY);
@@ -142,8 +197,9 @@ export default function SoftPot() {
 
   return (
     <div className="sp-zone">
-      <div className="sp-hdr" />
-      <div className="sp-badge">{`${currentMidiExact.toFixed(2)}`}</div>
+      <div className="sp-hdr">
+        <div className="sp-badge">{`${currentMidiExact.toFixed(2)}`}</div>
+      </div>
       <div className="sp-body">
         <div className="sp-strip" onPointerDown={handleStripPointerDown}>
           <div

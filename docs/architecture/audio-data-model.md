@@ -18,18 +18,16 @@ Contains:
 Numbered phrase unit inside one layer.
 
 Contains:
-- `definition` (notes + span)
+- `definition` (notes + span + shared repeat spacing: `repeatUnit`, repeat-every memories)
 - loop-level `mapping`
 - `loopInstances` (placements)
 
 ### `LayerLoopInstance`
-Placement/repeat row for one `LayerLoop`.
+Placement row for one `LayerLoop`.
 
 Contains:
 - 0-indexed `startBeat`
-- `repeatUnit`
-- repeat memory fields (`repeatEvery*Memory`)
-- `repeatCount` (`null` = repeat through composition end)
+- `repeatCount` (`null` = repeat through composition end for that instance’s repeats)
 
 ## Store ownership
 

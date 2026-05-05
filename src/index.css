@@ -1050,6 +1050,17 @@ body.drag-selection-lock * {
   opacity: 0.38;
   filter: saturate(0.7);
 }
+
+/* MIDI roll note hits reuse composition tier classes */
+.mnote.cblock--instance-selected {
+  opacity: 0.9;
+  box-shadow: 0 0 0 1.5px rgba(0, 219, 231, 0.75);
+}
+.mnote.cblock--instance-unselected {
+  opacity: 0.38;
+  filter: saturate(0.7);
+}
+
 .comp-nowbar--ruler {
   pointer-events: none;
 }
@@ -1165,7 +1176,7 @@ body.drag-selection-lock * {
 }
 /* No top padding: align with SoftPot. Horizontal inset only; vertical breathing room is owned per view. */
 .midi-content {
-  --midi-roll-bottom-offset: calc(var(--pitch-area-pad-bottom) + 2px);
+  --midi-roll-bottom-offset: var(--pitch-area-pad-bottom);
   flex: 1;
   padding: 0 8px;
   display: flex;
@@ -1305,38 +1316,6 @@ body.drag-selection-lock * {
   padding: 5px 0;
   min-width: 28px;
 }
-.mtrack-lbl {
-  font-size: 9px;
-  margin-bottom: 2px;
-  color: var(--on-surf-var);
-  text-transform: lowercase;
-}
-.lbl-b {
-  color: var(--layer-b);
-}
-.lbl-c {
-  color: var(--layer-c);
-}
-.lbl-d {
-  color: var(--layer-d);
-}
-.piano-roll {
-  height: 58px;
-  background: var(--surf-lowest);
-  border-radius: 6px;
-  position: relative;
-  overflow: hidden;
-}
-.semi-div {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0.5px;
-  background: rgba(155, 138, 180, 0.08);
-}
-.semi-c {
-  background: rgba(155, 138, 180, 0.18);
-}
 .mnote {
   position: absolute;
   border-radius: 2px;
@@ -1368,8 +1347,8 @@ body.drag-selection-lock * {
   z-index: 2;
 }
 .mnote-layer-selected {
-  opacity: 0.7;
-  filter: saturate(1.08) brightness(1.03);
+  opacity: 0.88;
+  filter: saturate(1.14) brightness(1.06);
 }
 .mnote-layer-unselected {
   opacity: 0.32;
@@ -1384,93 +1363,9 @@ body.drag-selection-lock * {
 .mnote-loop-3 {
   box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.35);
 }
-.mnote-loop-dim {
-  opacity: 0.18 !important;
-  filter: saturate(0.65);
-}
 .cluster-repeat--locked {
   opacity: 0.42;
   pointer-events: none;
-}
-.mnote-focus {
-  opacity: 0.9;
-  box-shadow: 0 0 7px currentColor;
-}
-.mnote-loop-editing {
-  outline: 1px solid rgba(255, 255, 255, 0.8);
-  outline-offset: -1px;
-  cursor: grab;
-}
-.mnote-dragging {
-  cursor: grabbing;
-}
-.mnote-handle {
-  position: absolute;
-  top: 1px;
-  bottom: 1px;
-  width: 6px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.65);
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25);
-  pointer-events: auto;
-  z-index: 3;
-}
-.mnote-handle-left {
-  left: 1px;
-  cursor: ew-resize;
-}
-.mnote-handle-right {
-  right: 1px;
-  cursor: ew-resize;
-}
-.mnote-drag-conflict {
-  border-color: rgba(255, 76, 106, 0.95);
-  box-shadow: 0 0 7px rgba(255, 76, 106, 0.75);
-}
-.mnote-invalid-fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: rgba(255, 76, 106, 0.68);
-  pointer-events: none;
-  z-index: 2;
-}
-.midi-loop-boundary {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: rgba(0, 219, 231, 0.75);
-  box-shadow: 0 0 4px rgba(0, 219, 231, 0.35);
-  z-index: 4;
-  pointer-events: none;
-}
-/* Layer muted in the layer list: still visible, clearly “off” vs active notes */
-.mnote.mnote-muted {
-  opacity: 0.22;
-  filter: grayscale(0.55) brightness(0.82);
-  overflow: hidden;
-}
-.mnote.mnote-muted::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 1;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(0, 0, 0, 0.22),
-    rgba(0, 0, 0, 0.22) 2px,
-    transparent 2px,
-    transparent 7px
-  );
-}
-.mnote.mnote-muted.mnote-focus {
-  opacity: 0.34;
-  filter: grayscale(0.35) brightness(0.88);
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.45);
 }
 .mnote-a {
   background: var(--layer-a);
@@ -1484,6 +1379,29 @@ body.drag-selection-lock * {
 .mnote-d {
   background: var(--layer-d);
 }
+.mnote-e {
+  background: var(--layer-e);
+}
+.comp-instance-span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.28;
+  background-image: repeating-linear-gradient(
+    90deg,
+    currentColor 0px,
+    currentColor 3px,
+    transparent 3px,
+    transparent 11px
+  );
+}
+.comp-instance-span.mnote-a { color: var(--layer-a); }
+.comp-instance-span.mnote-b { color: var(--layer-b); }
+.comp-instance-span.mnote-c { color: var(--layer-c); }
+.comp-instance-span.mnote-d { color: var(--layer-d); }
+.comp-instance-span.mnote-e { color: var(--layer-e); }
 /* Wide hit target; visible line via ::after — only this moves the now bar when dragged */
 .mroll-ph {
   position: absolute;
@@ -1570,6 +1488,47 @@ body.drag-selection-lock * {
   align-items: stretch;
   transition: transform 0.2s ease;
 }
+
+.midi-roll-strip--layered {
+  flex-direction: column;
+  position: relative;
+}
+
+.midi-roll-strip-measures {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  align-items: stretch;
+}
+
+.midi-roll-strip-notes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+button.midi-roll-timeline-note {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.midi-roll-timeline-note {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 3px;
+  min-width: 2px;
+  pointer-events: auto;
+  z-index: 5;
+  overflow: hidden;
+}
+
+.comp-timeline-note {
+  min-width: 2px;
+}
+
 .midi-roll-measure {
   min-width: 0;
   display: flex;

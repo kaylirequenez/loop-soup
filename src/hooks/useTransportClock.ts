@@ -3,6 +3,8 @@ import { useShallow } from "zustand/react/shallow";
 import { useMidiStore } from "../store/midiStore";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
+import { useLayerEditorStore } from "../store/layerEditorStore";
+import { useLayerStore } from "../store/layerStore";
 import { wrapBeat, playheadMeasureIndex } from "../utils/midiTransport";
 import { clamp } from "../utils";
 import { compositionLoopBeatLength } from "../utils/compositionState";
@@ -54,7 +56,23 @@ export function useTransportClock() {
       const { midiPlayheadBeat, midiMeasuresVisible } = useMidiStore.getState();
 
       const msPerBeat = 60000 / clamp(bpm, 40, 240);
-      const beat = wrapBeat(midiPlayheadBeat + dt / msPerBeat, beatLength);
+      const rawBeat = midiPlayheadBeat + dt / msPerBeat;
+
+      if (rawBeat >= beatLength) {
+        const es = useLayerEditorStore.getState();
+        if (es.isRecordingLoop) {
+          if (es.selectedLoopId !== null) {
+            useLayerStore.getState().finalizeLoop(
+              es.selectedLayerId,
+              es.selectedLoopId,
+              beatLength,
+            );
+          }
+          es.stopRecording();
+        }
+      }
+
+      const beat = wrapBeat(rawBeat, beatLength);
 
       const measureCount = Math.max(1, Math.ceil(beatLength / beatsPerMeasure));
       const playheadIdx = playheadMeasureIndex(beat, beatsPerMeasure);

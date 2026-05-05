@@ -26,25 +26,28 @@ export interface LoopNote {
   beatIndex: number;
   /** Sub-beat offset within that beat; in [0, 1). */
   startInBeat: number;
-  lengthInBeat: number;
+  /** null while the note is still being recorded (duration unknown). */
+  lengthInBeat: number | null;
 }
 
-/** Placed instance row (placement/repeat only). Definition and mapping are owned by LayerLoop. */
+/** Placed instance row (placement + per-instance repeat count only). Shared repeat spacing lives on `LoopDefinition`. */
 export interface LayerLoopInstance {
   id: LoopInstanceId;
   /** 0-indexed beat in the composition at which this instance starts. */
   startBeat: number;
-  repeatUnit: RepeatUnit;
-  repeatEveryMeasuresMemory: number | null;
-  repeatEveryBeatsMemory: number | null;
   /** Number of extra repeats after the base phrase. null = repeat to composition end. */
   repeatCount: number | null;
 }
 
 /** Musical content shared across all instances of this loop. */
 export interface LoopDefinition {
-  spanBeats: number;
+  /** null while the loop is still being recorded (span not finalized). */
+  spanBeats: number | null;
   notes: LoopNote[];
+  /** Shared by all instances of this loop (not per-instance). */
+  repeatUnit: RepeatUnit;
+  repeatEveryMeasuresMemory: number | null;
+  repeatEveryBeatsMemory: number | null;
 }
 
 /**
@@ -87,9 +90,6 @@ export interface LayerStoreState {
     loopInstance: {
       id: LoopInstanceId;
       startBeat: number;
-      repeatUnit?: RepeatUnit;
-      repeatEveryMeasuresMemory?: number | null;
-      repeatEveryBeatsMemory?: number | null;
       repeatCount?: number | null;
     },
   ) => void;
@@ -116,24 +116,40 @@ export interface LayerStoreState {
     loopId: LayerLoopId,
     delta: number,
   ) => void;
-  setLoopInstanceRepeatUnit: (
+  setLoopRepeatUnit: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
     unit: RepeatUnit,
     beatsPerMeasure: number,
   ) => void;
-  toggleLoopInstanceRepeatEvery: (
+  toggleLoopRepeatEvery: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
     value: number,
-    beatsPerMeasure: number,
   ) => void;
   setLoopInstanceStartBeat: (
     layerId: LayerId,
     loopId: LayerLoopId,
     instanceId: LoopInstanceId,
     startBeat: number,
+  ) => void;
+  addNewLoop: (layerId: LayerId) => void;
+  deleteLastLoop: (layerId: LayerId) => void;
+  addLoopNote: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    pitchClass: number,
+    octave: number,
+    absoluteStartBeat: number,
+  ) => void;
+  endLoopNote: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    absoluteEndBeat: number,
+  ) => void;
+  finalizeLoop: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    endBeat: number,
   ) => void;
 }

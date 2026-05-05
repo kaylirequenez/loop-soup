@@ -18,6 +18,10 @@ interface LayerEditorStore extends LayerEditorState {
   ) => void;
   clearLoopSelection: () => void;
   clearInstanceSelection: () => void;
+  startRecording: () => void;
+  stopRecording: () => void;
+  /** Selects the new loop instance and sets `isRecordingLoop` in a single update. */
+  armNewLoopRecording: (layerId: LayerId, loopId: LayerLoopId) => void;
 }
 
 /**
@@ -32,54 +36,86 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   selectedLayerId: "A",
   selectedLoopId: null,
   selectedInstanceId: null,
+  isRecordingLoop: false,
 
   setSelectedLayerId: (id) =>
-    set({
-      selectedLayerId: id,
-      selectedLoopId: null,
-      selectedInstanceId: null,
+    set((state) => {
+      if (state.isRecordingLoop) return state;
+      return {
+        selectedLayerId: id,
+        selectedLoopId: null,
+        selectedInstanceId: null,
+      };
     }),
 
   selectLoop: (layerId, loopId) =>
-    set({
-      selectedLayerId: layerId,
-      selectedLoopId: loopId,
-      selectedInstanceId: null,
+    set((state) => {
+      if (state.isRecordingLoop) return state;
+      return {
+        selectedLayerId: layerId,
+        selectedLoopId: loopId,
+        selectedInstanceId: null,
+      };
     }),
 
   selectInstance: (layerId, loopId, instanceId) =>
-    set({
-      selectedLayerId: layerId,
-      selectedLoopId: loopId,
-      selectedInstanceId: instanceId,
+    set((state) => {
+      if (state.isRecordingLoop) return state;
+      return {
+        selectedLayerId: layerId,
+        selectedLoopId: loopId,
+        selectedInstanceId: instanceId,
+      };
     }),
 
   toggleLoopSelection: (layerId, loopId) =>
-    set((state) =>
-      state.selectedLayerId === layerId && state.selectedLoopId === loopId
+    set((state) => {
+      if (state.isRecordingLoop) return state;
+      return state.selectedLayerId === layerId &&
+        state.selectedLoopId === loopId
         ? { selectedLoopId: null, selectedInstanceId: null }
         : {
             selectedLayerId: layerId,
             selectedLoopId: loopId,
             selectedInstanceId: null,
-          },
-    ),
+          };
+    }),
 
   toggleInstanceSelection: (layerId, loopId, instanceId) =>
-    set((state) =>
-      state.selectedLayerId === layerId &&
-      state.selectedLoopId === loopId &&
-      state.selectedInstanceId === instanceId
+    set((state) => {
+      if (state.isRecordingLoop) return state;
+      return state.selectedLayerId === layerId &&
+        state.selectedLoopId === loopId &&
+        state.selectedInstanceId === instanceId
         ? { selectedInstanceId: null }
         : {
             selectedLayerId: layerId,
             selectedLoopId: loopId,
             selectedInstanceId: instanceId,
-          },
-    ),
+          };
+    }),
 
   clearLoopSelection: () =>
-    set({ selectedLoopId: null, selectedInstanceId: null }),
+    set((state) => {
+      if (state.isRecordingLoop) return state;
+      return { selectedLoopId: null, selectedInstanceId: null };
+    }),
 
-  clearInstanceSelection: () => set({ selectedInstanceId: null }),
+  clearInstanceSelection: () =>
+    set((state) => {
+      if (state.isRecordingLoop) return state;
+      return { selectedInstanceId: null };
+    }),
+
+  startRecording: () => set({ isRecordingLoop: true }),
+
+  stopRecording: () => set({ isRecordingLoop: false }),
+
+  armNewLoopRecording: (layerId, loopId) =>
+    set({
+      selectedLayerId: layerId,
+      selectedLoopId: loopId,
+      selectedInstanceId: 0,
+      isRecordingLoop: true,
+    }),
 }));

@@ -1,9 +1,15 @@
 import type {
   LayerLoop,
   LayerLoopInstance,
+  LoopDefinition,
   LoopNote,
   RepeatUnit,
 } from "../types/layer";
+
+type RepeatMemoryFields = Pick<
+  LoopDefinition,
+  "repeatEveryMeasuresMemory" | "repeatEveryBeatsMemory"
+>;
 import { isMidiInLoopNoteRange, loopNoteToMidi } from "./pitch";
 
 const MAX_REPEAT_EVERY_MEASURES = 4;
@@ -51,10 +57,10 @@ export function isRepeatDisabledForUnit(
  */
 export function getRepeatEveryForUnit(
   unit: RepeatUnit,
-  instance: LayerLoopInstance,
+  definition: RepeatMemoryFields,
 ): number | null {
-  if (unit === "measures") return instance.repeatEveryMeasuresMemory;
-  return instance.repeatEveryBeatsMemory;
+  if (unit === "measures") return definition.repeatEveryMeasuresMemory;
+  return definition.repeatEveryBeatsMemory;
 }
 
 function canShiftLoopNoteOctaveBy(

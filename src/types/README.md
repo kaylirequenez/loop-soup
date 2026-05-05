@@ -55,6 +55,6 @@ Top-level app-view union types.
 - Every store state/action interface lives in `src/types/*` and is imported by the store file.
 - `Layer.defaultMapping` is the no-selection mapping target.
 - `LayerLoop.mapping` is loop-specific mapping.
-- `LayerLoopInstance` stores placement/repeat only.
+- `LayerLoopInstance` stores placement (`startBeat`) and per-instance `repeatCount`; shared repeat spacing lives on `LoopDefinition`.
 - Manual mute + solo state stay outside saved layer project data.
 - Beat positions are 0-indexed in data structures unless a field comment says otherwise.

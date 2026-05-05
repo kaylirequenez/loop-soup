@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { maxMeasuresCompositionLimit } from "../utils/compositionState";
 import { oneBasedRange } from "../utils";
@@ -14,18 +15,16 @@ import { useMidiStore } from "../store/midiStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
 import { IconRestartComposition, IconRestartView } from "../ui/restartIcons";
+import { RepeatUnit } from "../types/layer";
 
 export default function BottomControls() {
-  const { isPlaying, addOn, togglePlaying, toggleAddOn, bumpTransportNonce } =
-    useTransportStore(
-      useShallow((s) => ({
-        isPlaying: s.isPlaying,
-        addOn: s.addOn,
-        togglePlaying: s.togglePlaying,
-        toggleAddOn: s.toggleAddOn,
-        bumpTransportNonce: s.bumpTransportNonce,
-      })),
-    );
+  const { isPlaying, togglePlaying, bumpTransportNonce } = useTransportStore(
+    useShallow((s) => ({
+      isPlaying: s.isPlaying,
+      togglePlaying: s.togglePlaying,
+      bumpTransportNonce: s.bumpTransportNonce,
+    })),
+  );
   const { meter, totalMeasures, setTotalMeasures } = useCompositionStore(
     useShallow((s) => ({
       meter: s.meter,
@@ -33,25 +32,34 @@ export default function BottomControls() {
       setTotalMeasures: s.setTotalMeasures,
     })),
   );
-  const { selectedLayerId, selectedLoopId, selectedInstanceId } =
-    useLayerEditorStore(
-      useShallow((s) => ({
-        selectedLayerId: s.selectedLayerId,
-        selectedLoopId: s.selectedLoopId,
-        selectedInstanceId: s.selectedInstanceId,
-      })),
-    );
+  const {
+    selectedLayerId,
+    selectedLoopId,
+    selectedInstanceId,
+    isRecordingLoop,
+    stopRecording,
+  } = useLayerEditorStore(
+    useShallow((s) => ({
+      selectedLayerId: s.selectedLayerId,
+      selectedLoopId: s.selectedLoopId,
+      selectedInstanceId: s.selectedInstanceId,
+      isRecordingLoop: s.isRecordingLoop,
+      stopRecording: s.stopRecording,
+    })),
+  );
   const {
     layers,
+    addNewLoop,
     shiftLoopNotesOctave,
-    setLoopInstanceRepeatUnit,
-    toggleLoopInstanceRepeatEvery,
+    setLoopRepeatUnit,
+    toggleLoopRepeatEvery,
   } = useLayerStore(
     useShallow((s) => ({
       layers: s.layers,
+      addNewLoop: s.addNewLoop,
       shiftLoopNotesOctave: s.shiftLoopNotesOctave,
-      setLoopInstanceRepeatUnit: s.setLoopInstanceRepeatUnit,
-      toggleLoopInstanceRepeatEvery: s.toggleLoopInstanceRepeatEvery,
+      setLoopRepeatUnit: s.setLoopRepeatUnit,
+      toggleLoopRepeatEvery: s.toggleLoopRepeatEvery,
     })),
   );
   const {
@@ -70,32 +78,57 @@ export default function BottomControls() {
     })),
   );
 
-  const activeLoop =
+  const activeLoopData =
     selectedLoopId != null
-      ? {
-          loop: layers[selectedLayerId].layerLoops[selectedLoopId],
-          instance:
-            selectedInstanceId != null
-              ? layers[selectedLayerId].layerLoops[selectedLoopId]
-                  .loopInstances[selectedInstanceId]
-              : null,
-        }
+      ? (layers[selectedLayerId].layerLoops[selectedLoopId] ?? null)
       : null;
+  const activeLoop = activeLoopData
+    ? {
+        loop: activeLoopData,
+        instance:
+          selectedInstanceId != null
+            ? (activeLoopData.loopInstances[selectedInstanceId] ?? null)
+            : null,
+      }
+    : null;
 
-  const instanceEnabled = selectedInstanceId != null;
+  /** Repeat spacing is edited for the whole loop; individual instance placement uses repeatCount elsewhere (future UI). */
+  const repeatControlsEnabled = selectedLoopId != null;
   const loopEnabled = selectedLoopId != null;
   const canRemoveLastMeasure = totalMeasures >= 2;
   const canAddMeasure = totalMeasures < maxMeasuresCompositionLimit();
-  const spanBeats = activeLoop?.loop.definition.spanBeats ?? 1;
-  const repeatUnit = activeLoop?.instance?.repeatUnit ?? "measures";
-  const repeatEvery = activeLoop?.instance
-    ? getRepeatEveryForUnit(repeatUnit, activeLoop.instance)
+  const spanBeats = activeLoop?.loop.definition.spanBeats;
+  const repeatUnit = activeLoop?.loop.definition.repeatUnit ?? "measures";
+  const repeatEvery = activeLoop?.loop
+    ? getRepeatEveryForUnit(repeatUnit, activeLoop.loop.definition)
     : null;
 
   const loopNotes = activeLoop?.loop.definition.notes ?? [];
   const canTransposeDown =
     loopEnabled && canShiftLoopNotesOctaveBy(loopNotes, -1);
   const canTransposeUp = loopEnabled && canShiftLoopNotesOctaveBy(loopNotes, 1);
+
+  const handleStartRecording = () => {
+    addNewLoop(selectedLayerId);
+  };
+
+  const handleEndRecording = () => {
+    const es = useLayerEditorStore.getState();
+    const endBeat = useMidiStore.getState().midiPlayheadBeat;
+    if (es.selectedLoopId !== null) {
+      useLayerStore
+        .getState()
+        .finalizeLoop(es.selectedLayerId, es.selectedLoopId, endBeat);
+    }
+    stopRecording();
+  };
+
+  useEffect(() => {
+    if (!isPlaying && useLayerEditorStore.getState().isRecordingLoop) {
+      handleEndRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying]);
 
   const handleRestartFromStart = () => {
     bumpTransportNonce();
@@ -145,8 +178,10 @@ export default function BottomControls() {
               <IconRestartView />
             </button>
             <button
-              className={`btn-add ${addOn ? "btn-add-on" : ""}`}
-              onClick={toggleAddOn}
+              className={`btn-add ${isRecordingLoop ? "btn-add-on" : ""}`}
+              onClick={
+                isRecordingLoop ? handleEndRecording : handleStartRecording
+              }
             >
               +
             </button>
@@ -177,7 +212,7 @@ export default function BottomControls() {
         <div className="sep" />
         <div className="cluster cluster-repeat cluster-repeat-split">
           <div
-            className={`repeat-split-col ${!instanceEnabled ? "cluster-repeat--locked" : ""}`}
+            className={`repeat-split-col ${!repeatControlsEnabled ? "cluster-repeat--locked" : ""}`}
           >
             <div className="repeat-header-inline">
               <div className="clbl2">repeat every n</div>
@@ -187,14 +222,13 @@ export default function BottomControls() {
                     key={`u-${value}`}
                     type="button"
                     className={`rep-btn ${repeatUnit === value ? "rep-on" : ""}`}
-                    disabled={!instanceEnabled}
+                    disabled={!repeatControlsEnabled}
                     onClick={() => {
-                      if (activeLoop?.instance) {
-                        setLoopInstanceRepeatUnit(
+                      if (repeatControlsEnabled && activeLoop) {
+                        setLoopRepeatUnit(
                           selectedLayerId,
                           activeLoop.loop.id,
-                          activeLoop.instance.id,
-                          value as "measures" | "beats",
+                          value as RepeatUnit,
                           meter.beatsPerMeasure,
                         );
                       }
@@ -212,7 +246,8 @@ export default function BottomControls() {
                     maxRepeatEveryForUnit(repeatUnit, meter.beatsPerMeasure),
                   ).map((n) => {
                     const disabled =
-                      !instanceEnabled ||
+                      !repeatControlsEnabled ||
+                      spanBeats == null ||
                       isRepeatDisabledForUnit(
                         spanBeats,
                         meter.beatsPerMeasure,
@@ -226,13 +261,11 @@ export default function BottomControls() {
                         className={`rep-btn ${repeatEvery === n ? "rep-on" : ""}`}
                         disabled={disabled}
                         onClick={() => {
-                          if (activeLoop?.instance) {
-                            toggleLoopInstanceRepeatEvery(
+                          if (repeatControlsEnabled && activeLoop) {
+                            toggleLoopRepeatEvery(
                               selectedLayerId,
                               activeLoop.loop.id,
-                              activeLoop.instance.id,
                               n,
-                              meter.beatsPerMeasure,
                             );
                           }
                         }}

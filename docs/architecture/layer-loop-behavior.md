@@ -8,7 +8,8 @@ Defines expected behavior for mapping edits, loop placement/repeat state, duplic
 
 - `Layer` owns layer defaults and a map of numbered `LayerLoop`s.
 - `LayerLoop` owns one shared `definition` + one loop-level `mapping`.
-- `LayerLoopInstance` rows (inside `LayerLoop`) own placement/repeat only.
+- `LayerLoopInstance` rows own placement (`startBeat`) and per-instance `repeatCount` only.
+- Shared repeat spacing (`repeatUnit`, repeat-every memories) lives on `LoopDefinition` for all instances of that loop.
 
 ## Mapping behavior
 
@@ -20,19 +21,19 @@ Defines expected behavior for mapping edits, loop placement/repeat state, duplic
 ## Placement and repeat behavior
 
 - `startBeat` is always 0-indexed composition beat.
-- `repeatUnit` determines whether repeat memory is interpreted in beats or measures.
-- `repeatCount: null` means "repeat to composition boundary".
-- Turning repeat off clears active repeat memory for that unit and clears `repeatCount`.
+- `repeatUnit` and repeat-every memories live on `LoopDefinition` (same for every instance of that loop).
+- Per-instance `repeatCount`: `null` means "repeat to composition boundary" for that instance’s tiling.
+- Turning repeat frequency off clears active repeat memory on the definition for that unit and clears `repeatCount` on **all** instances of the loop.
 
 ## Duplicate vs create
 
 - Duplicate loop instance:
-  - keeps same loop definition and mapping
-  - copies repeat settings
+  - keeps same loop definition and mapping (including shared repeat spacing)
+  - copies `repeatCount` from source instance
   - assigns new instance id/start beat
 - Add new loop instance:
-  - creates a new instance row
-  - defaults repeat to off
+  - creates a new instance row (`repeatCount` default null)
+  - uses shared repeat spacing from `LoopDefinition`
   - starts from layer defaults/mapping policy
 
 ## Playback override behavior

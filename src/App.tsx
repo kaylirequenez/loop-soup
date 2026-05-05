@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { subscribeLoopTimeline } from "./utils/subscribeLoopTimeline";
 import BottomControls from "./components/BottomControls";
 import CompositionView from "./components/CompositionView";
 import DevToolbar from "./components/DevToolbar";
@@ -11,6 +12,7 @@ import TopBar from "./components/TopBar";
 export default function App() {
   const [showHookModal, setShowHookModal] = useState(false);
   useTransportClock();
+  useEffect(() => subscribeLoopTimeline(), []);
 
   return (
     <main className="app-wrap">

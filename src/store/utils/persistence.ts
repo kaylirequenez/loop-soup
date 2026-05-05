@@ -1,5 +1,13 @@
 import { DEFAULT_LAYERS } from "./defaultLayers";
-import type { LayersState } from "../../types/layer";
+import type {
+  LayerId,
+  LayerLoop,
+  LayerLoopInstance,
+  LayersState,
+  LoopDefinition,
+  LoopInstanceId,
+  RepeatUnit,
+} from "../../types/layer";
 import type {
   MidiLayerPlacement,
   MidiLoopRollPlacementMap,
@@ -7,7 +15,7 @@ import type {
 
 export { DEFAULT_LAYERS };
 
-export const LAYER_SCHEMA_VERSION = 2;
+export const LAYER_SCHEMA_VERSION = 3;
 
 /** Builds empty per-layer loop placement maps for MIDI roll routing. */
 export function buildDefaultMidiLoopRollPlacement(): MidiLoopRollPlacementMap {
@@ -18,7 +26,6 @@ export function buildDefaultMidiLoopRollPlacement(): MidiLoopRollPlacementMap {
 export function buildDefaultMidiLayerPlacement(): MidiLayerPlacement {
   return { A: "both", B: "both", C: "both", D: "both", E: "both" };
 }
-
 
 /**
  * Purpose:
@@ -33,17 +40,94 @@ export function clampPersistedMidiPlayheadBeat(
   return Math.min(Math.max(0, raw), len - 1e-6);
 }
 
+type LegacyLoopInstance = LayerLoopInstance & {
+  repeatUnit?: RepeatUnit;
+  repeatEveryMeasuresMemory?: number | null;
+  repeatEveryBeatsMemory?: number | null;
+};
+
+function repeatFieldsLiveOnDefinition(def: LoopDefinition): boolean {
+  return (
+    "repeatUnit" in def &&
+    "repeatEveryMeasuresMemory" in def &&
+    "repeatEveryBeatsMemory" in def
+  );
+}
+
+function normalizeLoop(loop: LayerLoop): LayerLoop {
+  const rawInstances = Object.values(loop.loopInstances) as LegacyLoopInstance[];
+  let def = loop.definition;
+
+  if (!repeatFieldsLiveOnDefinition(def)) {
+    const sorted = [...rawInstances].sort((a, b) => a.id - b.id);
+    const donor = sorted[0];
+    def = {
+      ...def,
+      repeatUnit: donor?.repeatUnit ?? "measures",
+      repeatEveryMeasuresMemory:
+        donor?.repeatEveryMeasuresMemory ?? null,
+      repeatEveryBeatsMemory: donor?.repeatEveryBeatsMemory ?? null,
+    };
+  } else {
+    def = {
+      ...def,
+      repeatUnit: def.repeatUnit ?? "measures",
+      repeatEveryMeasuresMemory: def.repeatEveryMeasuresMemory ?? null,
+      repeatEveryBeatsMemory: def.repeatEveryBeatsMemory ?? null,
+    };
+  }
+
+  const loopInstances = Object.fromEntries(
+    rawInstances.map((inst) => [
+      inst.id as LoopInstanceId,
+      {
+        id: inst.id,
+        startBeat: inst.startBeat,
+        repeatCount: inst.repeatCount ?? null,
+      } satisfies LayerLoopInstance,
+    ]),
+  );
+
+  return {
+    ...loop,
+    definition: def,
+    loopInstances,
+  };
+}
+
+function migrateLayers(layers: LayersState): LayersState {
+  const next: LayersState = { ...layers };
+  (Object.keys(next) as LayerId[]).forEach((layerId) => {
+    const layer = next[layerId];
+    const layerLoops = { ...layer.layerLoops };
+    for (const lid of Object.keys(layerLoops).map(Number)) {
+      layerLoops[lid] = normalizeLoop(layerLoops[lid]);
+    }
+    next[layerId] = { ...layer, layerLoops };
+  });
+  return next;
+}
+
 /**
  * Purpose:
- * Accepts persisted layer payload only when schema/version and shape match.
+ * Accepts persisted layer payload and normalizes schema (including v2 → v3).
  *
  * Behavior:
- * - Falls back to DEFAULT_LAYERS for invalid or stale payloads.
+ * - Repeat spacing (`repeatUnit`, repeat-every memories) is enforced on `LoopDefinition`.
+ * - Instances keep only `startBeat` and `repeatCount`.
+ * - v2 payloads migrate repeat settings from the lowest-id instance onto the definition.
  */
 export function mergePersistedLayers(stored: unknown): LayersState {
   if (!stored || typeof stored !== "object") return DEFAULT_LAYERS;
   const p = stored as Record<string, unknown>;
-  if (p.schemaVersion !== LAYER_SCHEMA_VERSION) return DEFAULT_LAYERS;
   if (!p.layers || typeof p.layers !== "object") return DEFAULT_LAYERS;
-  return p.layers as LayersState;
+
+  let version = p.schemaVersion;
+  if (version !== 2 && version !== LAYER_SCHEMA_VERSION) {
+    // Older saves may omit schemaVersion while still carrying `layers`.
+    if (version == null) version = 2;
+    else return DEFAULT_LAYERS;
+  }
+
+  return migrateLayers(p.layers as LayersState);
 }
