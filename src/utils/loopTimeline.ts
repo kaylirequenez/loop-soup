@@ -7,12 +7,7 @@ import type {
 import { LAYER_IDS } from "../types/layer";
 import type { TimelineExpandedNote } from "../types/timeline";
 import { useCompositionStore } from "../store/compositionStore";
-import { compositionLoopBeatLength } from "./compositionState";
-import {
-  type LoopInstanceCompositionDims,
-  maxRepeatCountForEndBeat,
-  repeatStrideBeats,
-} from "./loopInstanceUtils";
+import { repeatStrideBeats } from "./loopInstanceUtils";
 
 /** Precomputed phrase-local geometry per definition note (layer / loop ids fixed on the loop). */
 interface PhraseNoteBase {
@@ -48,18 +43,6 @@ export class LoopTimeline {
     }
   }
 
-  private compositionGeometry(): LoopInstanceCompositionDims {
-    const { meter, totalMeasures } = useCompositionStore.getState();
-    const beatsPerMeasure = meter.beatsPerMeasure;
-    return {
-      beatsPerMeasure,
-      compositionEndBeat: compositionLoopBeatLength(
-        totalMeasures,
-        beatsPerMeasure,
-      ),
-    };
-  }
-
   /** Removes one loop’s expansion (e.g. after delete). */
   invalidateLoop(layerId: LayerId, loopId: LayerLoopId): void {
     this.map.delete(cacheKey(layerId, loopId));
@@ -77,14 +60,15 @@ export class LoopTimeline {
    * Recompute every loop’s expansion from current `layers` and composition bounds.
    */
   rebuildAll(layers: LayersState): void {
-    const { beatsPerMeasure, compositionEndBeat } = this.compositionGeometry();
+    const beatsPerMeasure = useCompositionStore.getState().meter.beatsPerMeasure;
     this.map.clear();
     for (const layerId of LAYER_IDS) {
       const layer = layers[layerId];
+      if (!layer || !Array.isArray(layer.layerLoops)) continue;
       layer.layerLoops.forEach((loop, loopId) => {
         this.map.set(
           cacheKey(layerId, loopId),
-          this.expandLoop(layerId, loop, beatsPerMeasure, compositionEndBeat),
+          this.expandLoop(layerId, loop, beatsPerMeasure),
         );
       });
     }
@@ -100,7 +84,7 @@ export class LoopTimeline {
     loopId: LayerLoopId,
     layers: LayersState,
   ): void {
-    const { beatsPerMeasure, compositionEndBeat } = this.compositionGeometry();
+    const beatsPerMeasure = useCompositionStore.getState().meter.beatsPerMeasure;
     const loop = layers[layerId]?.layerLoops[loopId];
     const key = cacheKey(layerId, loopId);
     if (!loop) {
@@ -110,7 +94,7 @@ export class LoopTimeline {
     }
     this.map.set(
       key,
-      this.expandLoop(layerId, loop, beatsPerMeasure, compositionEndBeat),
+      this.expandLoop(layerId, loop, beatsPerMeasure),
     );
     this.notify();
   }
@@ -182,7 +166,6 @@ export class LoopTimeline {
     layerId: LayerId,
     loop: LayerLoop,
     beatsPerMeasure: number,
-    compositionEndBeat: number,
   ): TimelineExpandedNote[] {
     const def = loop.definition;
     const { notes: rawNotes } = def;
@@ -199,28 +182,25 @@ export class LoopTimeline {
     const out: TimelineExpandedNote[] = [];
 
     for (const instance of loop.loopInstances) {
-      let maxR = 0;
-      let numBeatsBetween = 0;
-
+      let repeatOffsets = [0];
       if (!loopIsRecording) {
         const step = repeatStrideBeats(def, beatsPerMeasure);
-        if (step != null) {
-          numBeatsBetween = step;
-          const maxByComposition = maxRepeatCountForEndBeat(
-            instance.startBeat,
-            spanBeats,
-            step,
-            compositionEndBeat,
-          );
-          maxR =
-            instance.repeatCount == null
-              ? maxByComposition
-              : Math.min(instance.repeatCount, maxByComposition);
+        if (step > 0 && instance.endBeat != null) {
+          repeatOffsets = [];
+          let repeatOffsetBeats = 0;
+          while (
+            instance.startBeat + repeatOffsetBeats + spanBeats <=
+            instance.endBeat + 1e-6
+          ) {
+            repeatOffsets.push(repeatOffsetBeats);
+            repeatOffsetBeats += step;
+          }
+          // Guard against malformed persisted data where endBeat is too short.
+          if (repeatOffsets.length === 0) repeatOffsets = [0];
         }
       }
 
-      for (let r = 0; r <= maxR; r += 1) {
-        const repeatOffsetBeats = numBeatsBetween * r;
+      repeatOffsets.forEach((repeatOffsetBeats, r) => {
 
         for (const base of phraseNoteBases) {
           const absoluteStartBeat =
@@ -241,7 +221,7 @@ export class LoopTimeline {
             isActiveRecordingNote: base.lengthInBeat == null,
           });
         }
-      }
+      });
     }
 
     return out;

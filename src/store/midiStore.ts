@@ -1,10 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { compositionLoopBeatLength } from "../utils/compositionState";
 import {
   buildDefaultMidiLayerPlacement,
   buildDefaultMidiLoopRollPlacement,
-  clampPersistedMidiPlayheadBeat,
 } from "./utils/persistence";
 import { useLayerStore } from "./layerStore";
 import { useCompositionStore } from "./compositionStore";
@@ -126,18 +124,10 @@ export const useMidiStore = create<MidiStoreState>()(
       }),
       merge: (persistedState, currentState) => {
         const p = (persistedState ?? {}) as Record<string, unknown>;
-        const { meter, totalMeasures } = useCompositionStore.getState();
-        const beatLength = compositionLoopBeatLength(
-          totalMeasures,
-          meter.beatsPerMeasure,
-        );
         return {
           ...currentState,
           ...p,
-          midiPlayheadBeat: clampPersistedMidiPlayheadBeat(
-            p.midiPlayheadBeat,
-            beatLength,
-          ),
+          midiPlayheadBeat: p.midiPlayheadBeat as number,
         } as MidiStoreState;
       },
     },

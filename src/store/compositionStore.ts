@@ -58,6 +58,7 @@ export const useCompositionStore = create<CompositionStoreState>()(
     }),
     {
       name: COMPOSITION_STORE_KEY,
+      version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         bpm: state.bpm,

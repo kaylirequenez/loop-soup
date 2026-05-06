@@ -926,6 +926,7 @@ export const useLayerStore = create<LayerStoreState>()(
     }),
     {
       name: LAYER_STORE_KEY,
+      version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         schemaVersion: LAYER_SCHEMA_VERSION,

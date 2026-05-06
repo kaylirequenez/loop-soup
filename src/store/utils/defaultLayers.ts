@@ -1,8 +1,4 @@
 import type { LayersState, LoopDefinition } from "../../types/layer";
-import { endBeatFromRepeatCount } from "../../utils/loopInstanceUtils";
-
-/** Matches initial `meter.beatsPerMeasure` in composition store (repeat step math only). */
-const DEFAULT_BEATS_PER_MEASURE = 4;
 
 const DEFAULT_KNOBS = {
   filter: { value: 0.8, label: "fltr" },
@@ -26,14 +22,10 @@ function defaultDefinitionForSpan(spanBeats: number): LoopDefinition {
 }
 
 function defaultInstance(startBeat: number, spanBeats: number) {
-  const proposed = { startBeat, repeatCount: null as number | null };
   return {
-    ...proposed,
-    endBeat: endBeatFromRepeatCount(
-      proposed,
-      defaultDefinitionForSpan(spanBeats),
-      DEFAULT_BEATS_PER_MEASURE,
-    ),
+    startBeat,
+    repeatCount: null,
+    endBeat: startBeat + spanBeats,
   };
 }
 

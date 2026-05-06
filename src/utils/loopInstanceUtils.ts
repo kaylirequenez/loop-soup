@@ -179,19 +179,6 @@ export function getValidInstanceInfoForProposedStart(
     return null;
   }
 
-  const step = repeatStrideBeats(definition, beatsPerMeasure);
-  if (step == 0) {
-    return {
-      insertIndex,
-      repeatCount: null,
-      endBeat: endBeatFromRepeatCount(
-        proposedInstance,
-        definition,
-        beatsPerMeasure,
-      ),
-    };
-  }
-
   const fitted = fitRepeatCountToWindow(
     proposedInstance,
     maxAllowedEndBeat,
@@ -207,8 +194,9 @@ export function getValidInstanceInfoForProposedStart(
   };
 }
 
-export function endBeatFromRepeatCount(
-  instance: Pick<LayerLoopInstance, "startBeat" | "repeatCount">,
+function endBeatFromRepeatCount(
+  instance: Pick<LayerLoopInstance, "startBeat">,
+  repeatCount: number,
   definition: LoopDefinition,
   beatsPerMeasure: number,
 ): number {
@@ -218,12 +206,12 @@ export function endBeatFromRepeatCount(
   }
   const step = repeatStrideBeats(definition, beatsPerMeasure);
   if (step == 0) return instance.startBeat + spanBeats;
-  return instance.startBeat + (instance.repeatCount ?? 0) * step + spanBeats;
+  return instance.startBeat + repeatCount * step + spanBeats;
 }
 
 /**
  * Returns the largest valid repeatCount (possibly reduced) that fits in [startBeat, maxEndBeat].
- * For non-repeating loops (repeatEvery = null), repeatCount remains null.
+ * For non-repeating loops (repeatEvery = null), repeatCount is 0.
  */
 export function fitRepeatCountToWindow(
   instance: Pick<LayerLoopInstance, "startBeat" | "repeatCount">,
@@ -236,30 +224,22 @@ export function fitRepeatCountToWindow(
   const startBeat = instance.startBeat;
   if (spanBeats <= 0 || startBeat + spanBeats > maxEndBeat) return null;
   const step = repeatStrideBeats(definition, beatsPerMeasure);
+  let repeatCount: number;
   if (step == 0) {
-    return {
-      repeatCount: null,
-      endBeat: endBeatFromRepeatCount(instance, definition, beatsPerMeasure),
-    };
+    repeatCount = 0;
+  } else {
+    const maxRepeatCount = maxRepeatCountForEndBeat(
+      startBeat,
+      spanBeats,
+      step,
+      maxEndBeat,
+    );
+    const preferredRepeatCount = instance.repeatCount ?? maxRepeatCount;
+    repeatCount = Math.min(preferredRepeatCount, maxRepeatCount);
   }
-  const maxRepeatCount = maxRepeatCountForEndBeat(
-    startBeat,
-    spanBeats,
-    step,
-    maxEndBeat,
-  );
-  const preferredRepeatCount = instance.repeatCount;
-  const repeatCount =
-    preferredRepeatCount == null
-      ? maxRepeatCount
-      : Math.min(preferredRepeatCount, maxRepeatCount);
   return {
     repeatCount,
-    endBeat: endBeatFromRepeatCount(
-      { startBeat, repeatCount },
-      definition,
-      beatsPerMeasure,
-    ),
+    endBeat: endBeatFromRepeatCount({ startBeat }, repeatCount, definition, beatsPerMeasure),
   };
 }
 
@@ -351,7 +331,7 @@ export function getExpandedRepeatInfoForLastInstance(
   if (spanBeats == null) return null;
   const { compositionEndBeat, beatsPerMeasure } = compositionDims;
   const last = instances[instances.length - 1];
-  if (last.repeatCount == null) return null;
+  if (last.repeatCount != null) return last.endBeat;
   const fitted = fitRepeatCountToWindow(
     last,
     compositionEndBeat,
