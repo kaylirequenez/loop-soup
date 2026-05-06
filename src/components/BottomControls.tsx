@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { maxMeasuresCompositionLimit } from "../utils/compositionState";
+import {
+  compositionLoopBeatLength,
+  maxMeasuresCompositionLimit,
+} from "../utils/compositionState";
 import { oneBasedRange } from "../utils";
 import { snapPlayheadToView } from "../utils/midiTransport";
 import {
@@ -62,6 +65,14 @@ export default function BottomControls() {
       toggleLoopRepeatEvery: s.toggleLoopRepeatEvery,
     })),
   );
+
+  const compositionDims = {
+    beatsPerMeasure: meter.beatsPerMeasure,
+    compositionEndBeat: compositionLoopBeatLength(
+      totalMeasures,
+      meter.beatsPerMeasure,
+    ),
+  };
   const {
     midiMeasuresVisible,
     midiViewMeasureIndex,
@@ -137,7 +148,6 @@ export default function BottomControls() {
   };
 
   const handleSnapPlayhead = () => snapPlayheadToView(midiViewMeasureIndex);
-
   const handleAddMeasure = () => {
     const newTotal = totalMeasures + 1;
     setTotalMeasures(newTotal);
@@ -227,9 +237,9 @@ export default function BottomControls() {
                       if (repeatControlsEnabled && activeLoop) {
                         setLoopRepeatUnit(
                           selectedLayerId,
-                          activeLoop.loop.id,
+                          selectedLoopId,
                           value as RepeatUnit,
-                          meter.beatsPerMeasure,
+                          compositionDims,
                         );
                       }
                     }}
@@ -264,8 +274,9 @@ export default function BottomControls() {
                           if (repeatControlsEnabled && activeLoop) {
                             toggleLoopRepeatEvery(
                               selectedLayerId,
-                              activeLoop.loop.id,
+                              selectedLoopId,
                               n,
+                              compositionDims,
                             );
                           }
                         }}

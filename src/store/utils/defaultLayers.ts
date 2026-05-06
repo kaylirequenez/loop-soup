@@ -1,4 +1,8 @@
-import type { LayersState } from "../../types/layer";
+import type { LayersState, LoopDefinition } from "../../types/layer";
+import { endBeatFromRepeatCount } from "../../utils/loopInstanceUtils";
+
+/** Matches initial `meter.beatsPerMeasure` in composition store (repeat step math only). */
+const DEFAULT_BEATS_PER_MEASURE = 4;
 
 const DEFAULT_KNOBS = {
   filter: { value: 0.8, label: "fltr" },
@@ -13,15 +17,34 @@ const REPEAT_DEFAULTS = {
   repeatEveryBeatsMemory: null,
 };
 
+function defaultDefinitionForSpan(spanBeats: number): LoopDefinition {
+  return {
+    spanBeats,
+    notes: [],
+    ...REPEAT_DEFAULTS,
+  };
+}
+
+function defaultInstance(startBeat: number, spanBeats: number) {
+  const proposed = { startBeat, repeatCount: null as number | null };
+  return {
+    ...proposed,
+    endBeat: endBeatFromRepeatCount(
+      proposed,
+      defaultDefinitionForSpan(spanBeats),
+      DEFAULT_BEATS_PER_MEASURE,
+    ),
+  };
+}
+
 export const DEFAULT_LAYERS = {
   A: {
     role: "hook",
     volume: 0.7,
     defaultMapping: { soundId: "synth lead", knobsByEffect: DEFAULT_KNOBS },
     knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: {
-      1: {
-        id: 1,
+    layerLoops: [
+      {
         definition: {
           spanBeats: 1,
           notes: [
@@ -37,20 +60,17 @@ export const DEFAULT_LAYERS = {
         },
         mapping: { soundId: "synth lead", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: {
-          1: { id: 1, startBeat: 0, repeatCount: null },
-        },
+        loopInstances: [defaultInstance(0, 1)],
       },
-    },
+    ],
   },
   B: {
     role: "bass",
     volume: 0.7,
     defaultMapping: { soundId: "sub bass", knobsByEffect: DEFAULT_KNOBS },
     knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: {
-      1: {
-        id: 1,
+    layerLoops: [
+      {
         definition: {
           spanBeats: 2,
           notes: [
@@ -73,20 +93,17 @@ export const DEFAULT_LAYERS = {
         },
         mapping: { soundId: "sub bass", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: {
-          1: { id: 1, startBeat: 0, repeatCount: null },
-        },
+        loopInstances: [defaultInstance(0, 2)],
       },
-    },
+    ],
   },
   C: {
     role: "melody",
     volume: 0.7,
     defaultMapping: { soundId: "synth lead", knobsByEffect: DEFAULT_KNOBS },
     knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: {
-      1: {
-        id: 1,
+    layerLoops: [
+      {
         definition: {
           spanBeats: 3,
           notes: [
@@ -116,20 +133,17 @@ export const DEFAULT_LAYERS = {
         },
         mapping: { soundId: "synth lead", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: {
-          1: { id: 1, startBeat: 0, repeatCount: null },
-        },
+        loopInstances: [defaultInstance(0, 3)],
       },
-    },
+    ],
   },
   D: {
     role: "harmony",
     volume: 0.7,
     defaultMapping: { soundId: "pad", knobsByEffect: DEFAULT_KNOBS },
     knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: {
-      1: {
-        id: 1,
+    layerLoops: [
+      {
         definition: {
           spanBeats: 4,
           notes: [
@@ -166,20 +180,17 @@ export const DEFAULT_LAYERS = {
         },
         mapping: { soundId: "pad", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: {
-          1: { id: 1, startBeat: 0, repeatCount: null },
-        },
+        loopInstances: [defaultInstance(0, 4)],
       },
-    },
+    ],
   },
   E: {
     role: "drums",
     volume: 0.7,
     defaultMapping: { soundId: "electronic kit", knobsByEffect: DEFAULT_KNOBS },
     knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: {
-      1: {
-        id: 1,
+    layerLoops: [
+      {
         definition: {
           spanBeats: 2,
           notes: [
@@ -202,12 +213,9 @@ export const DEFAULT_LAYERS = {
         },
         mapping: { soundId: "electronic kit", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: {
-          1: { id: 1, startBeat: 0, repeatCount: null },
-        },
+        loopInstances: [defaultInstance(0, 2)],
       },
-      2: {
-        id: 2,
+      {
         definition: {
           spanBeats: 2,
           notes: [
@@ -230,10 +238,8 @@ export const DEFAULT_LAYERS = {
         },
         mapping: { soundId: "electronic kit", knobsByEffect: DEFAULT_KNOBS },
         knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: {
-          1: { id: 1, startBeat: 4, repeatCount: null },
-        },
+        loopInstances: [defaultInstance(4, 2)],
       },
-    },
+    ],
   },
 } satisfies LayersState;

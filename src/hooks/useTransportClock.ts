@@ -62,11 +62,9 @@ export function useTransportClock() {
         const es = useLayerEditorStore.getState();
         if (es.isRecordingLoop) {
           if (es.selectedLoopId !== null) {
-            useLayerStore.getState().finalizeLoop(
-              es.selectedLayerId,
-              es.selectedLoopId,
-              beatLength,
-            );
+            useLayerStore
+              .getState()
+              .finalizeLoop(es.selectedLayerId, es.selectedLoopId, beatLength);
           }
           es.stopRecording();
         }
@@ -74,9 +72,8 @@ export function useTransportClock() {
 
       const beat = wrapBeat(rawBeat, beatLength);
 
-      const measureCount = Math.max(1, Math.ceil(beatLength / beatsPerMeasure));
       const playheadIdx = playheadMeasureIndex(beat, beatsPerMeasure);
-      const visible = Math.max(1, Math.min(midiMeasuresVisible, measureCount));
+      const visible = Math.max(1, Math.min(midiMeasuresVisible, totalMeasures));
       const maxStart = Math.max(0, totalMeasures - visible);
       const midiViewMeasureIndex = Math.max(0, Math.min(maxStart, playheadIdx));
 

@@ -3,48 +3,16 @@ import type {
   LayerLoop,
   LayerLoopId,
   LayersState,
-  LoopInstanceId,
-  RepeatUnit,
 } from "../types/layer";
 import { LAYER_IDS } from "../types/layer";
 import type { TimelineExpandedNote } from "../types/timeline";
 import { useCompositionStore } from "../store/compositionStore";
+import { compositionLoopBeatLength } from "./compositionState";
 import {
-  getRepeatEveryForUnit,
-  listLayerLoopInstancesSorted,
-} from "./layerState";
-
-/** Beats between phrase starts when repeating; mirrors `midiRollExpand.repeatIntervalBeats`. */
-function beatsBetweenRepeats(
-  repeatUnit: RepeatUnit,
-  repeatEvery: number | null,
-  beatsPerMeasure: number,
-): number | null {
-  if (repeatEvery == null) return null;
-  return repeatUnit === "beats" ? repeatEvery : repeatEvery * beatsPerMeasure;
-}
-
-/**
- * Maximum repeat index `r` (inclusive) for one instance: offsets are `r * numBeatsBetween`.
- * Matches `repeatOffsetsFromLoop` length / stepping.
- */
-function maxRepeatIndexInclusive(
-  instanceStartBeat: number,
-  repeatCount: number | null,
-  spanBeats: number,
-  numBeatsBetween: number,
-  compositionEndBeat: number,
-): number {
-  const maxByComposition = Math.max(
-    0,
-    Math.floor(
-      (compositionEndBeat - instanceStartBeat - spanBeats + 1e-6) /
-        numBeatsBetween,
-    ),
-  );
-  if (repeatCount == null) return maxByComposition;
-  return Math.min(repeatCount, maxByComposition);
-}
+  type LoopInstanceCompositionDims,
+  maxRepeatCountForEndBeat,
+  repeatStrideBeats,
+} from "./loopInstanceUtils";
 
 /** Precomputed phrase-local geometry per definition note (layer / loop ids fixed on the loop). */
 interface PhraseNoteBase {
@@ -80,15 +48,15 @@ export class LoopTimeline {
     }
   }
 
-  private compositionGeometry(): {
-    beatsPerMeasure: number;
-    compositionEndBeat: number;
-  } {
+  private compositionGeometry(): LoopInstanceCompositionDims {
     const { meter, totalMeasures } = useCompositionStore.getState();
     const beatsPerMeasure = meter.beatsPerMeasure;
     return {
       beatsPerMeasure,
-      compositionEndBeat: totalMeasures * beatsPerMeasure,
+      compositionEndBeat: compositionLoopBeatLength(
+        totalMeasures,
+        beatsPerMeasure,
+      ),
     };
   }
 
@@ -113,14 +81,12 @@ export class LoopTimeline {
     this.map.clear();
     for (const layerId of LAYER_IDS) {
       const layer = layers[layerId];
-      for (const loopIdStr of Object.keys(layer.layerLoops)) {
-        const loopId = Number(loopIdStr) as LayerLoopId;
-        const loop = layer.layerLoops[loopId];
+      layer.layerLoops.forEach((loop, loopId) => {
         this.map.set(
           cacheKey(layerId, loopId),
           this.expandLoop(layerId, loop, beatsPerMeasure, compositionEndBeat),
         );
-      }
+      });
     }
     this.notify();
   }
@@ -163,14 +129,11 @@ export class LoopTimeline {
   appendRecordingNote(
     layerId: LayerId,
     loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
     noteIndexInDefinition: number,
     absoluteStartBeat: number,
   ): void {
     const row: TimelineExpandedNote = {
       layerId,
-      loopId,
-      instanceId,
       repeatIndex: 0,
       repeatOffsetBeats: 0,
       noteIndexInDefinition,
@@ -221,45 +184,38 @@ export class LoopTimeline {
     beatsPerMeasure: number,
     compositionEndBeat: number,
   ): TimelineExpandedNote[] {
-    const loopId = loop.id;
     const def = loop.definition;
     const { notes: rawNotes } = def;
 
     const spanBeats = def.spanBeats;
     const loopIsRecording = spanBeats == null;
 
-    const phraseNoteBases: PhraseNoteBase[] = rawNotes.map((note, i) => {
-      return {
-        noteIndexInDefinition: i,
-        relativeStartInPhrase: note.beatIndex + note.startInBeat,
-        lengthInBeat: note.lengthInBeat,
-      };
-    });
+    const phraseNoteBases: PhraseNoteBase[] = rawNotes.map((note, i) => ({
+      noteIndexInDefinition: i,
+      relativeStartInPhrase: note.beatIndex + note.startInBeat,
+      lengthInBeat: note.lengthInBeat,
+    }));
 
-    const instances = listLayerLoopInstancesSorted(loop);
     const out: TimelineExpandedNote[] = [];
 
-    for (const instance of instances) {
-      if (instance.startBeat < 0) continue;
-
+    for (const instance of loop.loopInstances) {
       let maxR = 0;
       let numBeatsBetween = 0;
 
       if (!loopIsRecording) {
-        const step = beatsBetweenRepeats(
-          def.repeatUnit,
-          getRepeatEveryForUnit(def.repeatUnit, def),
-          beatsPerMeasure,
-        );
+        const step = repeatStrideBeats(def, beatsPerMeasure);
         if (step != null) {
           numBeatsBetween = step;
-          maxR = maxRepeatIndexInclusive(
+          const maxByComposition = maxRepeatCountForEndBeat(
             instance.startBeat,
-            instance.repeatCount,
             spanBeats,
             step,
             compositionEndBeat,
           );
+          maxR =
+            instance.repeatCount == null
+              ? maxByComposition
+              : Math.min(instance.repeatCount, maxByComposition);
         }
       }
 
@@ -277,8 +233,6 @@ export class LoopTimeline {
 
           out.push({
             layerId,
-            loopId,
-            instanceId: instance.id,
             repeatIndex: r,
             repeatOffsetBeats,
             noteIndexInDefinition: base.noteIndexInDefinition,

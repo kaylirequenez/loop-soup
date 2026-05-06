@@ -290,7 +290,10 @@ body {
 .main-top {
   --left-rail-width: 82px;
   display: grid;
-  grid-template-columns: minmax(var(--left-rail-width), var(--left-rail-width)) minmax(0, 1fr);
+  grid-template-columns: minmax(
+      var(--left-rail-width),
+      var(--left-rail-width)
+    ) minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   align-items: stretch;
@@ -501,6 +504,10 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.view-bar-right-controls.view-bar-right-controls-sound-open
+  .midi-roll-menu-dropdown {
+  right: 82px;
 }
 .midi-menu-anchor {
   position: relative;
@@ -836,7 +843,7 @@ body.drag-selection-lock * {
 }
 
 .comp-zone {
-  --comp-roll-pick-col: 50px;
+  --comp-roll-pick-col: 62px;
   --comp-label-col: 44px;
   --comp-gap: 5px;
   background: var(--surf-lowest);
@@ -929,14 +936,21 @@ body.drag-selection-lock * {
   right: calc(9px + var(--comp-roll-pick-col) + var(--comp-gap));
 }
 .comp-roll-placement {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 1px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+.comp-roll-placement-cell {
   display: flex;
-  gap: 2px;
+  justify-content: center;
   align-items: center;
-  justify-content: flex-end;
+  width: 100%;
   min-width: 0;
 }
 .comp-roll-placement-btn {
-  flex: 1 1 0;
   min-width: 0;
   border: 0.5px solid rgba(155, 138, 180, 0.35);
   background: rgba(22, 12, 36, 0.95);
@@ -946,7 +960,7 @@ body.drag-selection-lock * {
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
-  padding: 3px 1px;
+  padding: 3px 0;
   cursor: pointer;
   transition:
     border-color 0.12s ease,
@@ -1397,11 +1411,21 @@ body.drag-selection-lock * {
     transparent 11px
   );
 }
-.comp-instance-span.mnote-a { color: var(--layer-a); }
-.comp-instance-span.mnote-b { color: var(--layer-b); }
-.comp-instance-span.mnote-c { color: var(--layer-c); }
-.comp-instance-span.mnote-d { color: var(--layer-d); }
-.comp-instance-span.mnote-e { color: var(--layer-e); }
+.comp-instance-span.mnote-a {
+  color: var(--layer-a);
+}
+.comp-instance-span.mnote-b {
+  color: var(--layer-b);
+}
+.comp-instance-span.mnote-c {
+  color: var(--layer-c);
+}
+.comp-instance-span.mnote-d {
+  color: var(--layer-d);
+}
+.comp-instance-span.mnote-e {
+  color: var(--layer-e);
+}
 /* Wide hit target; visible line via ::after — only this moves the now bar when dragged */
 .mroll-ph {
   position: absolute;

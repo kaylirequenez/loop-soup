@@ -58,7 +58,9 @@ export default function WorkspacePanel() {
           dual
         </button>
         {showMidi && <MidiMeasureNav currentView={currentView} />}
-        <div className="view-bar-right-controls">
+        <div
+          className={`view-bar-right-controls ${pickerOpen ? "view-bar-right-controls-sound-open" : ""}`}
+        >
           {showMidi && <MidiMenu />}
           <button
             className={`sounds-toggle ${pickerOpen ? "sounds-toggle-on" : ""}`}

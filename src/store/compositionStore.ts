@@ -1,7 +1,11 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { CompositionStoreState } from "../types/composition";
-import { clampLoopOctaveForKey } from "../utils/compositionState";
+import {
+  clampLoopOctaveForKey,
+  compositionLoopBeatLength,
+} from "../utils/compositionState";
+import { useLayerStore } from "./layerStore";
 
 export const COMPOSITION_STORE_KEY = "loop-soup-composition";
 
@@ -18,7 +22,7 @@ export const COMPOSITION_STORE_KEY = "loop-soup-composition";
 export const useCompositionStore = create<CompositionStoreState>()(
   persist(
     (set, get) => ({
-      bpm: 128,
+      bpm: 90,
       key: { root: "A", accidental: null, mode: "min" },
       meter: { beatsPerMeasure: 4, noteValue: 4 },
       octave: 3,
@@ -30,12 +34,27 @@ export const useCompositionStore = create<CompositionStoreState>()(
           key: value,
           octave: clampLoopOctaveForKey(state.octave, value),
         })),
-      setMeter: (value) => set({ meter: value }),
+      setMeter: (value) => {
+        set({ meter: value });
+      },
       setOctave: (value) =>
         set(() => ({
           octave: clampLoopOctaveForKey(value, get().key),
         })),
-      setTotalMeasures: (value) => set({ totalMeasures: value }),
+      setTotalMeasures: (value) => {
+        const prevTotal = get().totalMeasures;
+        const { beatsPerMeasure } = get().meter;
+        set({ totalMeasures: value });
+        const dims = {
+          beatsPerMeasure,
+          compositionEndBeat: compositionLoopBeatLength(value, beatsPerMeasure),
+        };
+        if (value < prevTotal) {
+          useLayerStore.getState().trimInstancesToComposition(dims);
+        } else if (value > prevTotal) {
+          useLayerStore.getState().expandInstancesToComposition(dims);
+        }
+      },
     }),
     {
       name: COMPOSITION_STORE_KEY,

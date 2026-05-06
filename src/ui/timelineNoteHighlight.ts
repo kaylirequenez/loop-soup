@@ -1,8 +1,4 @@
-import type {
-  LayerId,
-  LayerLoopId,
-  LoopInstanceId,
-} from "../types/layer";
+import type { LayerId, LayerLoopId, LoopInstanceId } from "../types/layer";
 
 /**
  * Purpose:
@@ -19,16 +15,16 @@ export function timelineNoteSelectionHighlightClasses(params: {
   selectedLayerId: LayerId;
   selectedInstanceId: LoopInstanceId | null;
   noteLayerId: LayerId;
-  noteLoopId: LayerLoopId;
-  noteInstanceId: LoopInstanceId;
+  noteLoopIndex: number;
+  noteInstanceIndex: number;
 }): string {
   const {
     selectedLoopId,
     selectedLayerId,
     selectedInstanceId,
     noteLayerId,
-    noteLoopId,
-    noteInstanceId,
+    noteLoopIndex,
+    noteInstanceIndex,
   } = params;
 
   if (selectedLoopId == null) {
@@ -36,14 +32,14 @@ export function timelineNoteSelectionHighlightClasses(params: {
   }
 
   const loopMatches =
-    noteLayerId === selectedLayerId && noteLoopId === selectedLoopId;
+    noteLayerId === selectedLayerId && noteLoopIndex === selectedLoopId;
 
   if (!loopMatches) {
     return "mnote-layer-unselected";
   }
 
   const instanceMatches =
-    selectedInstanceId != null && noteInstanceId === selectedInstanceId;
+    selectedInstanceId != null && noteInstanceIndex === selectedInstanceId;
 
   return instanceMatches
     ? "cblock--instance-selected"

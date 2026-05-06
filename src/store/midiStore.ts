@@ -8,14 +8,7 @@ import {
 } from "./utils/persistence";
 import { useLayerStore } from "./layerStore";
 import { useCompositionStore } from "./compositionStore";
-import type { LayerId, LayerLoopId } from "../types/layer";
-import type {
-  MidiLayerPlacement,
-  MidiLoopRollPlacementMap,
-  MidiRollPlacement,
-  MidiStoreState,
-  RollSlot,
-} from "../types/midi";
+import type { MidiStoreState } from "../types/midi";
 /**
  * Midi store
  *
@@ -28,9 +21,9 @@ import type {
 export const useMidiStore = create<MidiStoreState>()(
   persist(
     (set, get) => ({
-      midiRollCount: 1,
+      midiRollCount: 2,
       midiRollSplitByRootOctave: false,
-      midiMeasuresVisible: 1,
+      midiMeasuresVisible: 2,
       midiViewMeasureIndex: 0,
       midiPlayheadBeat: 0,
       midiLoopRollPlacement: buildDefaultMidiLoopRollPlacement(),
@@ -68,14 +61,12 @@ export const useMidiStore = create<MidiStoreState>()(
 
       setMidiLayerRollPlacement: (layerId, placement) =>
         set((state) => {
-          const loops = Object.values(
-            useLayerStore.getState().layers[layerId].layerLoops,
-          );
+          const loops = useLayerStore.getState().layers[layerId].layerLoops;
           return {
             midiLoopRollPlacement: {
               ...state.midiLoopRollPlacement,
               [layerId]: Object.fromEntries(
-                loops.map((lp) => [lp.id, placement]),
+                loops.map((_, i) => [i, placement]),
               ),
             },
             midiLayerPlacement: {
@@ -91,12 +82,8 @@ export const useMidiStore = create<MidiStoreState>()(
             ...state.midiLoopRollPlacement[layerId],
             [loopId]: placement,
           };
-          const loops = Object.values(
-            useLayerStore.getState().layers[layerId].layerLoops,
-          );
-          const allSame = loops.every(
-            (lp) => nextLayerMap[lp.id] === placement,
-          );
+          const loops = useLayerStore.getState().layers[layerId].layerLoops;
+          const allSame = loops.every((_, i) => nextLayerMap[i] === placement);
           return {
             midiLoopRollPlacement: {
               ...state.midiLoopRollPlacement,

@@ -5,7 +5,6 @@ import type {
   LayerLoopInstance,
   LayersState,
   LoopDefinition,
-  LoopInstanceId,
   RepeatUnit,
 } from "../../types/layer";
 import type {
@@ -15,7 +14,7 @@ import type {
 
 export { DEFAULT_LAYERS };
 
-export const LAYER_SCHEMA_VERSION = 3;
+export const LAYER_SCHEMA_VERSION = 4;
 
 /** Builds empty per-layer loop placement maps for MIDI roll routing. */
 export function buildDefaultMidiLoopRollPlacement(): MidiLoopRollPlacementMap {
@@ -40,94 +39,143 @@ export function clampPersistedMidiPlayheadBeat(
   return Math.min(Math.max(0, raw), len - 1e-6);
 }
 
-type LegacyLoopInstance = LayerLoopInstance & {
+/** Shape of loop/instance data from v2/v3 saves (record-keyed with id fields). */
+type LegacyInstance = {
+  id?: number;
+  startBeat: number;
+  repeatCount?: number | null;
   repeatUnit?: RepeatUnit;
   repeatEveryMeasuresMemory?: number | null;
   repeatEveryBeatsMemory?: number | null;
 };
 
-function repeatFieldsLiveOnDefinition(def: LoopDefinition): boolean {
-  return (
-    "repeatUnit" in def &&
-    "repeatEveryMeasuresMemory" in def &&
-    "repeatEveryBeatsMemory" in def
-  );
+type LegacyLoop = {
+  id?: number;
+  definition: Partial<LoopDefinition> & { spanBeats: number | null; notes: unknown[] };
+  mapping: unknown;
+  knobOrder: unknown;
+  loopInstances: Record<string, LegacyInstance> | LayerLoopInstance[];
+  nextInstanceId?: number;
+};
+
+function isArrayInstances(v: unknown): v is LayerLoopInstance[] {
+  return Array.isArray(v);
 }
 
-function normalizeLoop(loop: LayerLoop): LayerLoop {
-  const rawInstances = Object.values(loop.loopInstances) as LegacyLoopInstance[];
-  let def = loop.definition;
+function normalizeLoop(raw: LegacyLoop): LayerLoop {
+  // Normalize instances to array form
+  let instances: LayerLoopInstance[];
+  if (isArrayInstances(raw.loopInstances)) {
+    instances = raw.loopInstances.map((inst) => ({
+      startBeat: inst.startBeat,
+      repeatCount: inst.repeatCount ?? null,
+    }));
+  } else {
+    // v2/v3: record-keyed, sort by numeric key
+    instances = Object.entries(raw.loopInstances)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([, inst]) => ({
+        startBeat: inst.startBeat,
+        repeatCount: inst.repeatCount ?? null,
+      }));
+  }
 
-  if (!repeatFieldsLiveOnDefinition(def)) {
-    const sorted = [...rawInstances].sort((a, b) => a.id - b.id);
-    const donor = sorted[0];
+  // Normalize repeat fields onto definition (v2 stored them on instances)
+  const rawDef = raw.definition;
+  let def: LoopDefinition;
+  if (
+    "repeatUnit" in rawDef &&
+    "repeatEveryMeasuresMemory" in rawDef &&
+    "repeatEveryBeatsMemory" in rawDef
+  ) {
     def = {
-      ...def,
-      repeatUnit: donor?.repeatUnit ?? "measures",
-      repeatEveryMeasuresMemory:
-        donor?.repeatEveryMeasuresMemory ?? null,
-      repeatEveryBeatsMemory: donor?.repeatEveryBeatsMemory ?? null,
+      spanBeats: rawDef.spanBeats,
+      notes: rawDef.notes as LoopDefinition["notes"],
+      repeatUnit: rawDef.repeatUnit ?? "measures",
+      repeatEveryMeasuresMemory: rawDef.repeatEveryMeasuresMemory ?? null,
+      repeatEveryBeatsMemory: rawDef.repeatEveryBeatsMemory ?? null,
     };
   } else {
+    // v2: promote repeat fields from lowest-id instance
+    const donor = !isArrayInstances(raw.loopInstances)
+      ? Object.values(raw.loopInstances).sort(
+          (a, b) => (a.id ?? 0) - (b.id ?? 0),
+        )[0]
+      : undefined;
     def = {
-      ...def,
-      repeatUnit: def.repeatUnit ?? "measures",
-      repeatEveryMeasuresMemory: def.repeatEveryMeasuresMemory ?? null,
-      repeatEveryBeatsMemory: def.repeatEveryBeatsMemory ?? null,
+      spanBeats: rawDef.spanBeats,
+      notes: rawDef.notes as LoopDefinition["notes"],
+      repeatUnit: donor?.repeatUnit ?? "measures",
+      repeatEveryMeasuresMemory: donor?.repeatEveryMeasuresMemory ?? null,
+      repeatEveryBeatsMemory: donor?.repeatEveryBeatsMemory ?? null,
     };
   }
 
-  const loopInstances = Object.fromEntries(
-    rawInstances.map((inst) => [
-      inst.id as LoopInstanceId,
-      {
-        id: inst.id,
-        startBeat: inst.startBeat,
-        repeatCount: inst.repeatCount ?? null,
-      } satisfies LayerLoopInstance,
-    ]),
-  );
-
   return {
-    ...loop,
     definition: def,
-    loopInstances,
+    mapping: raw.mapping as LayerLoop["mapping"],
+    knobOrder: raw.knobOrder as LayerLoop["knobOrder"],
+    loopInstances: instances,
   };
 }
 
-function migrateLayers(layers: LayersState): LayersState {
-  const next: LayersState = { ...layers };
+function migrateLayers(rawLayers: unknown): LayersState {
+  const src = rawLayers as Record<string, unknown>;
+  const next: LayersState = { ...DEFAULT_LAYERS };
+
   (Object.keys(next) as LayerId[]).forEach((layerId) => {
-    const layer = next[layerId];
-    const layerLoops = { ...layer.layerLoops };
-    for (const lid of Object.keys(layerLoops).map(Number)) {
-      layerLoops[lid] = normalizeLoop(layerLoops[lid]);
+    const rawLayer = src[layerId] as Record<string, unknown> | undefined;
+    if (!rawLayer) return;
+
+    let loops: LayerLoop[];
+    const rawLoops = rawLayer.layerLoops;
+    if (Array.isArray(rawLoops)) {
+      // v4: already an array
+      loops = (rawLoops as LegacyLoop[]).map(normalizeLoop);
+    } else if (rawLoops && typeof rawLoops === "object") {
+      // v2/v3: record-keyed, sort by numeric key
+      loops = Object.entries(rawLoops as Record<string, LegacyLoop>)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([, loop]) => normalizeLoop(loop));
+    } else {
+      return;
     }
-    next[layerId] = { ...layer, layerLoops };
+
+    next[layerId] = {
+      ...(rawLayer as Layer),
+      layerLoops: loops,
+    } as LayersState[LayerId];
   });
+
   return next;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Layer = any;
+
 /**
  * Purpose:
- * Accepts persisted layer payload and normalizes schema (including v2 → v3).
+ * Accepts persisted layer payload and normalizes schema (v2/v3/v4 → current).
  *
  * Behavior:
- * - Repeat spacing (`repeatUnit`, repeat-every memories) is enforced on `LoopDefinition`.
- * - Instances keep only `startBeat` and `repeatCount`.
- * - v2 payloads migrate repeat settings from the lowest-id instance onto the definition.
+ * - v2/v3: record-keyed loops and instances migrated to arrays.
+ * - v4: already array-based, just normalized.
+ * - Repeat spacing enforced on `LoopDefinition`.
  */
 export function mergePersistedLayers(stored: unknown): LayersState {
   if (!stored || typeof stored !== "object") return DEFAULT_LAYERS;
   const p = stored as Record<string, unknown>;
   if (!p.layers || typeof p.layers !== "object") return DEFAULT_LAYERS;
 
-  let version = p.schemaVersion;
-  if (version !== 2 && version !== LAYER_SCHEMA_VERSION) {
-    // Older saves may omit schemaVersion while still carrying `layers`.
-    if (version == null) version = 2;
-    else return DEFAULT_LAYERS;
+  const version = p.schemaVersion;
+  // Accept v2, v3, and v4; reject anything else
+  if (version !== 2 && version !== 3 && version !== LAYER_SCHEMA_VERSION) {
+    if (version == null) {
+      // very old save, try to migrate
+    } else {
+      return DEFAULT_LAYERS;
+    }
   }
 
-  return migrateLayers(p.layers as LayersState);
+  return migrateLayers(p.layers);
 }

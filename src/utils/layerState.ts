@@ -1,10 +1,4 @@
-import type {
-  LayerLoop,
-  LayerLoopInstance,
-  LoopDefinition,
-  LoopNote,
-  RepeatUnit,
-} from "../types/layer";
+import type { LoopDefinition, LoopNote, RepeatUnit } from "../types/layer";
 
 type RepeatMemoryFields = Pick<
   LoopDefinition,
@@ -63,10 +57,7 @@ export function getRepeatEveryForUnit(
   return definition.repeatEveryBeatsMemory;
 }
 
-function canShiftLoopNoteOctaveBy(
-  loopNote: LoopNote,
-  delta: number,
-): boolean {
+function canShiftLoopNoteOctaveBy(loopNote: LoopNote, delta: number): boolean {
   const nextMidi = loopNoteToMidi(loopNote) + delta * 12;
   return isMidiInLoopNoteRange(nextMidi);
 }
@@ -78,23 +69,4 @@ export function canShiftLoopNotesOctaveBy(
 ): boolean {
   if (notes.length === 0) return false;
   return notes.every((n) => canShiftLoopNoteOctaveBy(n, delta));
-}
-
-/**
- * Purpose:
- * Returns loop instances sorted deterministically for timeline rendering.
- *
- * Behavior:
- * - Primary sort by startBeat ascending.
- * - Tie-break on id ascending.
- */
-export function listLayerLoopInstancesSorted(
-  loop: LayerLoop,
-): LayerLoopInstance[] {
-  return Object.values(loop.loopInstances).sort((a, b) => {
-    if (a.startBeat !== b.startBeat) {
-      return a.startBeat - b.startBeat;
-    }
-    return a.id - b.id;
-  });
 }

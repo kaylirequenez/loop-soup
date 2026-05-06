@@ -7,6 +7,11 @@ export type LayerKnobEffect = "filter" | "reverb";
 
 export type RepeatUnit = "measures" | "beats";
 
+export interface LoopInstanceCompositionDims {
+  beatsPerMeasure: number;
+  compositionEndBeat: number;
+}
+
 export interface LayerKnob {
   value: number;
   label: string;
@@ -32,11 +37,16 @@ export interface LoopNote {
 
 /** Placed instance row (placement + per-instance repeat count only). Shared repeat spacing lives on `LoopDefinition`. */
 export interface LayerLoopInstance {
-  id: LoopInstanceId;
   /** 0-indexed beat in the composition at which this instance starts. */
   startBeat: number;
   /** Number of extra repeats after the base phrase. null = repeat to composition end. */
   repeatCount: number | null;
+  /**
+   * Precomputed end beat. When repeatCount is not null, derived from startBeat + repeatCount * step + spanBeats.
+   * When null, bounded by composition end at the time of last update.
+   * Set to -1 for the in-progress recording instance (spanBeats not yet known).
+   */
+  endBeat: number | null;
 }
 
 /** Musical content shared across all instances of this loop. */
@@ -54,12 +64,11 @@ export interface LoopDefinition {
  * Numbered layer loop (owns definition + mapping + ordered instances).
  */
 export interface LayerLoop {
-  id: LayerLoopId;
   definition: LoopDefinition;
   mapping: SoundMapping;
   knobOrder: LayerKnobEffect[];
-  /** Instances keyed by id; sort by startBeat for timeline order. */
-  loopInstances: Record<LoopInstanceId, LayerLoopInstance>;
+  /** Instances in placement order (index = instance id). */
+  loopInstances: LayerLoopInstance[];
 }
 
 export interface Layer {
@@ -68,7 +77,8 @@ export interface Layer {
   volume: number;
   defaultMapping: SoundMapping;
   knobOrder: LayerKnobEffect[];
-  layerLoops: Record<LayerLoopId, LayerLoop>;
+  /** Loops in creation order (index = loop id). */
+  layerLoops: LayerLoop[];
 }
 
 export type LayersState = Record<LayerId, Layer>;
@@ -87,19 +97,17 @@ export interface LayerStoreState {
   addLoopInstance: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    loopInstance: {
-      id: LoopInstanceId;
-      startBeat: number;
-      repeatCount?: number | null;
-    },
+    startBeat: number,
+    compositionDims: LoopInstanceCompositionDims,
+    referenceInstanceId?: LoopInstanceId,
   ) => void;
-  duplicateLoopInstance: (
+  deleteLoopInstance: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    sourceLoopInstanceId: LoopInstanceId,
-    nextLoopInstanceId: LoopInstanceId,
-    nextStartBeat: number,
+    instanceId: LoopInstanceId,
   ) => void;
+  duplicateLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
+  clearLoopInstances: (layerId: LayerId, loopId: LayerLoopId) => void;
   setLoopSoundId: (
     layerId: LayerId,
     loopId: LayerLoopId,
@@ -120,21 +128,40 @@ export interface LayerStoreState {
     layerId: LayerId,
     loopId: LayerLoopId,
     unit: RepeatUnit,
-    beatsPerMeasure: number,
+    compositionDims: LoopInstanceCompositionDims,
   ) => void;
   toggleLoopRepeatEvery: (
     layerId: LayerId,
     loopId: LayerLoopId,
     value: number,
+    compositionDims: LoopInstanceCompositionDims,
   ) => void;
   setLoopInstanceStartBeat: (
     layerId: LayerId,
     loopId: LayerLoopId,
     instanceId: LoopInstanceId,
     startBeat: number,
+    compositionDims: LoopInstanceCompositionDims,
+  ) => void;
+  setLoopInstanceEndBeat: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    instanceId: LoopInstanceId,
+    endBeat: number,
+    compositionDims: LoopInstanceCompositionDims,
+  ) => void;
+  /**
+   * Shifts a finalized loop instance while keeping its length/repeats stable.
+   * Rounds the provided newStartBeat, then applies delta to both start/end.
+   */
+  shiftLoopInstanceStartBeat: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    instanceId: LoopInstanceId,
+    newStartBeat: number,
   ) => void;
   addNewLoop: (layerId: LayerId) => void;
-  deleteLastLoop: (layerId: LayerId) => void;
+  deleteLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
   addLoopNote: (
     layerId: LayerId,
     loopId: LayerLoopId,
@@ -152,4 +179,9 @@ export interface LayerStoreState {
     loopId: LayerLoopId,
     endBeat: number,
   ) => void;
+
+  /** Composition length shrank: truncate/fit only. */
+  trimInstancesToComposition: (compositionDims: LoopInstanceCompositionDims) => void;
+  /** Composition length grew: expand only last row if possible. */
+  expandInstancesToComposition: (compositionDims: LoopInstanceCompositionDims) => void;
 }

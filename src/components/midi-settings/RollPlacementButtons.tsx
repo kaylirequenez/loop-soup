@@ -30,7 +30,7 @@ export function RollPlacementButtons({
         <button
           key={opt.key}
           type="button"
-          className={`comp-roll-placement-btn ${value === opt.value ? "comp-roll-placement-btn--on" : ""}`}
+          className={`comp-roll-placement-btn comp-roll-placement-btn--${opt.key} ${value === opt.value ? "comp-roll-placement-btn--on" : ""}`}
           title={titleForOption?.(opt.value, opt.title) ?? opt.title}
           aria-pressed={value === opt.value}
           onClick={() => onChange(opt.value)}
