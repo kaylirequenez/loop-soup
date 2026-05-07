@@ -1,9 +1,11 @@
+import type { KnobEffect, SoundId } from "../audio/types";
+
+export type { KnobEffect, SoundId };
+
 export type LayerId = "A" | "B" | "C" | "D" | "E";
 export const LAYER_IDS: LayerId[] = ["A", "B", "C", "D", "E"];
 export type LayerLoopId = number;
 export type LoopInstanceId = number;
-
-export type LayerKnobEffect = "filter" | "reverb";
 
 export type RepeatUnit = "measures" | "beats";
 
@@ -17,10 +19,10 @@ export interface LayerKnob {
   label: string;
 }
 
-export type LayerKnobsByEffect = Partial<Record<LayerKnobEffect, LayerKnob>>;
+export type LayerKnobsByEffect = Partial<Record<KnobEffect, LayerKnob>>;
 
 export interface SoundMapping {
-  soundId: string | null;
+  soundId: SoundId;
   knobsByEffect: LayerKnobsByEffect;
 }
 
@@ -66,7 +68,7 @@ export interface LoopDefinition {
 export interface LayerLoop {
   definition: LoopDefinition;
   mapping: SoundMapping;
-  knobOrder: LayerKnobEffect[];
+  knobOrder: KnobEffect[];
   /** Instances in placement order (index = instance id). */
   loopInstances: LayerLoopInstance[];
 }
@@ -76,7 +78,7 @@ export interface Layer {
   /** Layer output fader (0–1), separate from sound mapping. */
   volume: number;
   defaultMapping: SoundMapping;
-  knobOrder: LayerKnobEffect[];
+  knobOrder: KnobEffect[];
   /** Loops in creation order (index = loop id). */
   layerLoops: LayerLoop[];
 }
@@ -88,10 +90,10 @@ export interface LayerStoreState {
   layers: LayersState;
 
   setLayerVolume: (id: LayerId, volume: number) => void;
-  setLayerSoundId: (id: LayerId, soundId: string | null) => void;
+  setLayerSoundId: (id: LayerId, soundId: SoundId) => void;
   setLayerKnobValue: (
     id: LayerId,
-    effect: LayerKnobEffect,
+    effect: KnobEffect,
     value: number,
   ) => void;
   addLoopInstance: (
@@ -111,12 +113,12 @@ export interface LayerStoreState {
   setLoopSoundId: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    soundId: string | null,
+    soundId: SoundId,
   ) => void;
   setLoopKnobValue: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    effect: LayerKnobEffect,
+    effect: KnobEffect,
     value: number,
   ) => void;
   shiftLoopNotesOctave: (
@@ -150,10 +152,6 @@ export interface LayerStoreState {
     endBeat: number,
     compositionDims: LoopInstanceCompositionDims,
   ) => void;
-  /**
-   * Shifts a finalized loop instance while keeping its length/repeats stable.
-   * Rounds the provided newStartBeat, then applies delta to both start/end.
-   */
   shiftLoopInstanceStartBeat: (
     layerId: LayerId,
     loopId: LayerLoopId,

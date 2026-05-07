@@ -56,26 +56,28 @@ export default function CompositionView() {
     })),
   );
   const {
-    midiPlayheadBeat,
     midiRollCount,
     midiRollSplitByRootOctave,
     midiLoopRollPlacement,
     setMidiLoopRollPlacement,
-    setMidiPlayheadBeat,
-    setMidiViewMeasureIndex,
     midiMeasuresVisible,
   } = useMidiStore(
     useShallow((s) => ({
-      midiPlayheadBeat: s.midiPlayheadBeat,
       midiRollCount: s.midiRollCount,
       midiRollSplitByRootOctave: s.midiRollSplitByRootOctave,
       midiLoopRollPlacement: s.midiLoopRollPlacement,
       setMidiLoopRollPlacement: s.setMidiLoopRollPlacement,
-      setMidiPlayheadBeat: s.setMidiPlayheadBeat,
-      setMidiViewMeasureIndex: s.setMidiViewMeasureIndex,
       midiMeasuresVisible: s.midiMeasuresVisible,
     })),
   );
+  const { midiPlayheadBeat, setMidiPlayheadBeat, setMidiViewMeasureIndex } =
+    useTransportStore(
+      useShallow((s) => ({
+        midiPlayheadBeat: s.playheadBeat,
+        setMidiPlayheadBeat: s.setPlayheadBeat,
+        setMidiViewMeasureIndex: s.setViewMeasureIndex,
+      })),
+    );
   const timelineRevision = useSyncExternalStore(
     (onStoreChange) => loopTimeline.subscribe(onStoreChange),
     () => loopTimeline.getRevision(),
@@ -124,7 +126,7 @@ export default function CompositionView() {
       useTransportStore.getState().bumpTransportNonce();
     },
     onDragEnd: () => {
-      const beat = useMidiStore.getState().midiPlayheadBeat;
+      const beat = useTransportStore.getState().playheadBeat;
       const targetMeasure = Math.floor(beat / beatsPerMeasure);
       const maxStart = Math.max(0, totalMeasures - midiMeasuresVisible);
       setMidiViewMeasureIndex(Math.max(0, Math.min(maxStart, targetMeasure)));

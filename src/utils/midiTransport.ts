@@ -1,4 +1,3 @@
-import { useMidiStore } from "../store/midiStore";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
 
@@ -18,9 +17,7 @@ export function snapPlayheadToView(viewMeasureIndex: number): void {
     0,
     Math.min(totalMeasures - 1, viewMeasureIndex),
   );
-  useMidiStore
-    .getState()
-    .setMidiPlayheadBeat(targetMeasure * meter.beatsPerMeasure);
+  useTransportStore.getState().setPlayheadBeat(targetMeasure * meter.beatsPerMeasure);
   useTransportStore.getState().bumpTransportNonce();
 }
 

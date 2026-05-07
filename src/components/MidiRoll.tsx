@@ -14,9 +14,9 @@ export default function MidiRoll() {
     () => loopTimeline.getRevision(),
     () => loopTimeline.getRevision(),
   );
+  const layers = useLayerStore((s) => s.layers);
 
   const allNotes = useMemo(() => {
-    const layers = useLayerStore.getState().layers;
     const notes: RawRollNote[] = [];
     for (const layerId of LAYER_IDS) {
       const layerLoops = layers[layerId].layerLoops;
@@ -33,8 +33,7 @@ export default function MidiRoll() {
           );
           notes.push({
             ...row,
-            pitchClass: ln.pitchClass,
-            octave: ln.octave,
+            loopNote: ln,
             loopIndex,
             instanceIndex,
             reactKey: `${layerId}-${loopIndex}-${instanceIndex}-${row.repeatOffsetBeats}-${row.noteIndexInDefinition}-${row.absoluteStartBeat}`,
@@ -43,7 +42,7 @@ export default function MidiRoll() {
       }
     }
     return notes;
-  }, [timelineRevision]);
+  }, [timelineRevision, layers]);
 
   return (
     <div className="midi-view midi-view-on">

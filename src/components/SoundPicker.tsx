@@ -1,5 +1,5 @@
 import type { LayerId } from "../types/layer";
-import { SOUND_OPTIONS } from "../lib/sounds";
+import { ALL_SOUND_IDS, SOUND_CATALOG } from "../audio/sounds";
 
 interface SoundPickerProps {
   selectedLayer: LayerId;
@@ -14,8 +14,6 @@ export default function SoundPicker({
   sampleSoundOn,
   onToggleSample,
 }: SoundPickerProps) {
-  const sounds = SOUND_OPTIONS[selectedLayer] ?? [];
-
   return (
     <aside className={`sound-picker ${open ? "picker-open" : ""}`}>
       <div className="picker-hdr">
@@ -24,12 +22,12 @@ export default function SoundPicker({
       </div>
 
       <div className="snd-list">
-        {sounds.map((sound, index) => (
+        {ALL_SOUND_IDS.map((soundId, index) => (
           <div
-            key={sound}
+            key={soundId}
             className={`snd-item ${index === 0 ? "snd-active" : ""} ${index === 1 ? "snd-preview" : ""}`}
           >
-            <span>{sound}</span>
+            <span>{SOUND_CATALOG[soundId].displayName}</span>
             {index === 1 && <span className="snd-dot" />}
           </div>
         ))}

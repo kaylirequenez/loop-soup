@@ -6,12 +6,14 @@ import DevToolbar from "./components/DevToolbar";
 import WorkspacePanel from "./components/WorkspacePanel";
 import MakeHookModal from "./components/MakeHookModal";
 import { useTransportClock } from "./hooks/useTransportClock";
+import { useAudioScheduler } from "./hooks/useAudioScheduler";
 import SoftPot from "./components/SoftPot";
 import TopBar from "./components/TopBar";
 
 export default function App() {
   const [showHookModal, setShowHookModal] = useState(false);
   useTransportClock();
+  useAudioScheduler();
   useEffect(() => subscribeLoopTimeline(), []);
 
   return (

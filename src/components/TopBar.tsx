@@ -14,7 +14,6 @@ import { loopOctaveBoundsForKey } from "../utils/compositionState";
 import { commitIntegerDraft, inputKeyHandler } from "./userInput";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
-import { useMidiStore } from "../store/midiStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 
 const MIN_BPM = 40;
@@ -45,16 +44,16 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
       setOctave: s.setOctave,
     })),
   );
-  const isPlaying = useTransportStore((s) => s.isPlaying);
-  const { midiPlayheadBeat } = useMidiStore(
+  const { isPlaying, playheadBeat } = useTransportStore(
     useShallow((s) => ({
-      midiPlayheadBeat: s.midiPlayheadBeat,
+      isPlaying: s.isPlaying,
+      playheadBeat: s.playheadBeat,
     })),
   );
 
   const nowMeasure = Math.min(
     totalMeasures,
-    Math.floor(midiPlayheadBeat / meter.beatsPerMeasure) + 1,
+    Math.floor(playheadBeat / meter.beatsPerMeasure) + 1,
   );
 
   const keyName = musicalKeyToString(musicalKey);

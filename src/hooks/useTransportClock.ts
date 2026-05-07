@@ -1,31 +1,19 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { getContext as getToneContext, getTransport } from "tone";
 import { useMidiStore } from "../store/midiStore";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerStore } from "../store/layerStore";
 import { wrapBeat, playheadMeasureIndex } from "../utils/midiTransport";
+import { loopTimeline } from "../utils/loopTimeline";
 import { clamp } from "../utils";
 import { compositionLoopBeatLength } from "../utils/compositionState";
+import { audioEngine } from "../audio/audioEngine";
 
-/** Cap dt so a tab suspension or debugger pause doesn't produce a huge jump. */
-const MAX_DT_MS = 250;
+const MAX_AUDIO_DT = 0.25;
 
-/**
- * Drives the composition playhead via requestAnimationFrame when isPlaying is true.
- * Restarts the loop whenever transportNonce changes (used to re-sync after a seek).
- *
- * On each tick:
- *   - Advances midiPlayheadBeat by the elapsed time at the current bpm.
- *   - Wraps the beat at the composition boundary.
- *   - Scrolls midiViewMeasureIndex so the playhead stays in the visible window.
- *   - Updates playheadPhase (0–1) for any consumers that need a normalized position.
- *
- * This hook produces no output and must be called once near the root of the tree
- * (currently in App). When audio scheduling is added, the tick function is the
- * correct place to enqueue Web Audio events with lookahead.
- */
 export function useTransportClock() {
   const { isPlaying, transportNonce } = useTransportStore(
     useShallow((s) => ({
@@ -37,28 +25,32 @@ export function useTransportClock() {
   useEffect(() => {
     if (!isPlaying) return undefined;
 
+    const { bpm } = useCompositionStore.getState();
+    const transport = getTransport();
+    transport.bpm.value = clamp(bpm, 40, 240);
+    transport.start();
+
+    let lastAudioSeconds = transport.seconds;
+    let currentBeat = useTransportStore.getState().playheadBeat;
     let rafId = 0;
-    let lastT = performance.now();
 
     const tick = () => {
       if (!useTransportStore.getState().isPlaying) return;
 
-      const now = performance.now();
-      const dt = Math.min(now - lastT, MAX_DT_MS);
-      lastT = now;
+      const audioNow = transport.seconds;
+      const dt = Math.max(0, Math.min(audioNow - lastAudioSeconds, MAX_AUDIO_DT));
+      lastAudioSeconds = audioNow;
 
       const { meter, totalMeasures, bpm } = useCompositionStore.getState();
       const beatsPerMeasure = meter.beatsPerMeasure;
-      const beatLength = compositionLoopBeatLength(
-        totalMeasures,
-        beatsPerMeasure,
-      );
-      const { midiPlayheadBeat, midiMeasuresVisible } = useMidiStore.getState();
+      const beatLength = compositionLoopBeatLength(totalMeasures, beatsPerMeasure);
+      transport.bpm.value = clamp(bpm, 40, 240);
+      const bps = clamp(bpm, 40, 240) / 60;
 
-      const msPerBeat = 60000 / clamp(bpm, 40, 240);
-      const rawBeat = midiPlayheadBeat + dt / msPerBeat;
+      const rawBeat = currentBeat + dt * bps;
 
-      if (rawBeat >= beatLength) {
+      const wrapping = rawBeat >= beatLength;
+      if (wrapping) {
         const es = useLayerEditorStore.getState();
         if (es.isRecordingLoop) {
           if (es.selectedLoopId !== null) {
@@ -68,21 +60,34 @@ export function useTransportClock() {
           }
           es.stopRecording();
         }
+        audioEngine.cancelAll();
       }
 
-      const beat = wrapBeat(rawBeat, beatLength);
+      currentBeat = wrapBeat(rawBeat, beatLength);
 
-      const playheadIdx = playheadMeasureIndex(beat, beatsPerMeasure);
+      audioEngine.scheduleLookahead(
+        currentBeat,
+        getToneContext().currentTime,
+        bps,
+        useLayerStore.getState().layers,
+        (layerId, loopId) => loopTimeline.getNotesForLoop(layerId, loopId),
+      );
+
+      const { midiMeasuresVisible } = useMidiStore.getState();
+      const playheadIdx = playheadMeasureIndex(currentBeat, beatsPerMeasure);
       const visible = Math.max(1, Math.min(midiMeasuresVisible, totalMeasures));
       const maxStart = Math.max(0, totalMeasures - visible);
-      const midiViewMeasureIndex = Math.max(0, Math.min(maxStart, playheadIdx));
+      const viewMeasureIndex = Math.max(0, Math.min(maxStart, playheadIdx));
 
-      useMidiStore.setState({ midiPlayheadBeat: beat, midiViewMeasureIndex });
+      useTransportStore.setState({ playheadBeat: currentBeat, viewMeasureIndex });
 
       rafId = requestAnimationFrame(tick);
     };
 
     rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      cancelAnimationFrame(rafId);
+      transport.stop();
+    };
   }, [isPlaying, transportNonce]);
 }

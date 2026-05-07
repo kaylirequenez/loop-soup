@@ -1,11 +1,11 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { LAYER_COLORS } from "../ui/layerTheme";
-import { defaultSoundForLayer } from "../lib/sounds";
+import { defaultSoundForLayer, SOUND_CATALOG } from "../audio/sounds";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerPlaybackStore } from "../store/layerPlaybackStore";
-import type { LayerId, LayerKnobEffect } from "../types/layer";
+import type { LayerId, KnobEffect } from "../types/layer";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 import {
   buildLayerKnobDefs,
@@ -44,14 +44,15 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const activeLoop = activeLoopId != null ? layer.layerLoops[activeLoopId] : null;
   const activeMapping = activeLoop ? activeLoop.mapping : layer.defaultMapping;
   const activeKnobOrder = activeLoop ? activeLoop.knobOrder : layer.knobOrder;
-  const sound = activeMapping.soundId ?? defaultSoundForLayer(layerId);
+  const resolvedSoundId = activeMapping.soundId ?? defaultSoundForLayer(layerId);
+  const sound = SOUND_CATALOG[resolvedSoundId].displayName;
   const loopCount = Object.keys(layer.layerLoops).length;
   const faderPercent = Math.round(layer.volume * 100);
 
   const knobDefs = buildLayerKnobDefs(activeKnobOrder, activeMapping);
 
   const knobDragStateRef = useRef<{
-    effect: LayerKnobEffect;
+    effect: KnobEffect;
     startValue: number;
     startY: number;
   } | null>(null);
@@ -80,7 +81,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
 
   const handleKnobPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,
-    effect: LayerKnobEffect,
+    effect: KnobEffect,
     startValue: number,
   ) => {
     knobDragStateRef.current = { effect, startValue, startY: event.clientY };

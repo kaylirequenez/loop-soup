@@ -8,6 +8,10 @@ export interface TransportRuntimeState {
   extendOn: boolean;
   /** Monotonic counter used to force transport-side effects/restarts. */
   transportNonce: number;
+  /** Current composition playhead position in beats (0-based, wraps at loop end). */
+  playheadBeat: number;
+  /** 0-based index of the leftmost visible measure in the MIDI roll. */
+  viewMeasureIndex: number;
 }
 
 export type TransportStoreState = TransportRuntimeState & {
@@ -16,4 +20,6 @@ export type TransportStoreState = TransportRuntimeState & {
   setExtendOn: (value: boolean) => void;
   toggleExtendOn: () => void;
   bumpTransportNonce: () => void;
+  setPlayheadBeat: (beat: number) => void;
+  setViewMeasureIndex: (index: number) => void;
 };

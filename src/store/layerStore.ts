@@ -10,16 +10,12 @@ import type {
   LoopNote,
 } from "../types/layer";
 import { useLayerEditorStore } from "./layerEditorStore";
-import {
-  DEFAULT_LAYERS,
-  mergePersistedLayers,
-  LAYER_SCHEMA_VERSION,
-} from "./utils/persistence";
+import { DEFAULT_LAYERS } from "./utils/defaults";
 
 import { clamp } from "../utils";
 import { loopTimeline } from "../utils/loopTimeline";
+import { audioEngine } from "../audio/audioEngine";
 import {
-  canShiftLoopNotesOctaveBy,
   isRepeatDisabledForUnit,
   getRepeatEveryForUnit,
 } from "../utils/layerState";
@@ -193,7 +189,7 @@ export const useLayerStore = create<LayerStoreState>()(
           },
         })),
 
-      setLayerKnobValue: (id, effect, value) =>
+      setLayerKnobValue: (id, effect, value) => {
         set((state) => ({
           layers: {
             ...state.layers,
@@ -211,7 +207,12 @@ export const useLayerStore = create<LayerStoreState>()(
               },
             },
           },
-        })),
+        }));
+        audioEngine.setLayerEnvelope(
+          id,
+          useLayerStore.getState().layers[id].defaultMapping.knobsByEffect,
+        );
+      },
 
       addLoopInstance: (
         layerId,
@@ -347,7 +348,6 @@ export const useLayerStore = create<LayerStoreState>()(
 
       shiftLoopNotesOctave: (layerId, loopId, delta) => {
         const loop = get().layers[layerId]?.layerLoops[loopId];
-        if (!canShiftLoopNotesOctaveBy(loop.definition.notes, delta)) return;
         const notes = loop.definition.notes.map((n) => ({
           ...n,
           octave: n.octave + delta,
@@ -479,7 +479,8 @@ export const useLayerStore = create<LayerStoreState>()(
           if (!loop || !instance) return state;
           if (loop.definition.spanBeats == null) return state;
           // End stays fixed; start moves, so the available window shrinks/grows.
-          const maxEndBeat = instance.endBeat ?? compositionDims.compositionEndBeat;
+          const maxEndBeat =
+            instance.endBeat ?? compositionDims.compositionEndBeat;
           const fitted = fitRepeatCountToWindow(
             { startBeat, repeatCount: instance.repeatCount },
             maxEndBeat,
@@ -493,7 +494,11 @@ export const useLayerStore = create<LayerStoreState>()(
               layerId,
               loopId,
               instanceId,
-              { startBeat, repeatCount: fitted.repeatCount, endBeat: fitted.endBeat },
+              {
+                startBeat,
+                repeatCount: fitted.repeatCount,
+                endBeat: fitted.endBeat,
+              },
             ),
           };
         });
@@ -514,7 +519,10 @@ export const useLayerStore = create<LayerStoreState>()(
           if (loop.definition.spanBeats == null) return state;
           // Start stays fixed; end moves, so it becomes the new window ceiling.
           const fitted = fitRepeatCountToWindow(
-            { startBeat: instance.startBeat, repeatCount: instance.repeatCount },
+            {
+              startBeat: instance.startBeat,
+              repeatCount: instance.repeatCount,
+            },
             endBeat,
             loop.definition,
             compositionDims.beatsPerMeasure,
@@ -903,7 +911,8 @@ export const useLayerStore = create<LayerStoreState>()(
               if (!expanded) return loop;
               const lastIdx = loop.loopInstances.length - 1;
               const last = loop.loopInstances[lastIdx];
-              if (last.repeatCount == null || last.endBeat === expanded) return loop;
+              if (last.repeatCount == null || last.endBeat === expanded)
+                return loop;
               const nextInstances = loop.loopInstances.map((inst, idx) =>
                 idx !== lastIdx
                   ? inst
@@ -926,20 +935,15 @@ export const useLayerStore = create<LayerStoreState>()(
     }),
     {
       name: LAYER_STORE_KEY,
-      version: 1,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        schemaVersion: LAYER_SCHEMA_VERSION,
-        layers: state.layers,
-      }),
-      merge: (persistedState, currentState) => {
-        const layers = mergePersistedLayers(persistedState);
-        return { ...currentState, layers };
-      },
+      partialize: (state) => ({ layers: state.layers }),
+      migrate: () => ({ layers: DEFAULT_LAYERS }),
     },
   ),
 );
 
 function syncTimelineLoop(layerId: LayerId, loopId: LayerLoopId): void {
   loopTimeline.rebuildLoop(layerId, loopId, useLayerStore.getState().layers);
+  audioEngine.invalidateLoop(layerId, loopId);
 }

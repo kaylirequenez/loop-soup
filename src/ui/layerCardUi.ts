@@ -1,8 +1,4 @@
-import type {
-  LayerKnobEffect,
-  LayerKnobsByEffect,
-  SoundMapping,
-} from "../types/layer";
+import type { KnobEffect, LayerKnobsByEffect, SoundMapping } from "../types/layer";
 
 const KNOB_ARC_START_DEG = -140;
 const KNOB_ARC_SWEEP_DEG = 280;
@@ -11,7 +7,7 @@ const KNOB_ARC_CENTER = 20;
 const MIN_KNOB_VALUE_ARC = 0.001;
 
 export interface LayerKnobDisplayDef {
-  effect: LayerKnobEffect;
+  effect: KnobEffect;
   label: string;
   value: number;
 }
@@ -48,7 +44,7 @@ const describeArc = (startDeg: number, endDeg: number) => {
 };
 
 export const buildLayerKnobDefs = (
-  activeKnobOrder: LayerKnobEffect[],
+  activeKnobOrder: KnobEffect[],
   activeMapping: SoundMapping,
 ): LayerKnobDisplayDef[] =>
   activeKnobOrder

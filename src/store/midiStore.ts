@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import {
-  buildDefaultMidiLayerPlacement,
-  buildDefaultMidiLoopRollPlacement,
-} from "./utils/persistence";
 import { useLayerStore } from "./layerStore";
 import { useCompositionStore } from "./compositionStore";
+import { useTransportStore } from "./transportStore";
 import type { MidiStoreState } from "../types/midi";
+import {
+  DEFAULT_MIDI_LAYER_PLACEMENT,
+  DEFAULT_MIDI_LOOP_ROLL_PLACEMENT,
+} from "./utils/defaults";
 /**
  * Midi store
  *
@@ -22,10 +23,8 @@ export const useMidiStore = create<MidiStoreState>()(
       midiRollCount: 2,
       midiRollSplitByRootOctave: false,
       midiMeasuresVisible: 2,
-      midiViewMeasureIndex: 0,
-      midiPlayheadBeat: 0,
-      midiLoopRollPlacement: buildDefaultMidiLoopRollPlacement(),
-      midiLayerPlacement: buildDefaultMidiLayerPlacement(),
+      midiLoopRollPlacement: DEFAULT_MIDI_LOOP_ROLL_PLACEMENT,
+      midiLayerPlacement: DEFAULT_MIDI_LAYER_PLACEMENT,
 
       toggleSecondRoll: () =>
         set((state) => {
@@ -43,19 +42,14 @@ export const useMidiStore = create<MidiStoreState>()(
         })),
 
       setMidiMeasuresVisible: (value) =>
-        set((state) => {
+        set(() => {
           const { totalMeasures } = useCompositionStore.getState();
           const maxStart = totalMeasures - value;
-          const nextStart = Math.min(state.midiViewMeasureIndex, maxStart);
-          return {
-            midiMeasuresVisible: value,
-            midiViewMeasureIndex: nextStart,
-          };
+          const { viewMeasureIndex } = useTransportStore.getState();
+          const nextStart = Math.min(viewMeasureIndex, maxStart);
+          useTransportStore.setState({ viewMeasureIndex: nextStart });
+          return { midiMeasuresVisible: value };
         }),
-
-      setMidiViewMeasureIndex: (value) => set({ midiViewMeasureIndex: value }),
-
-      setMidiPlayheadBeat: (beat) => set({ midiPlayheadBeat: beat }),
 
       setMidiLayerRollPlacement: (layerId, placement) =>
         set((state) => {
@@ -119,17 +113,7 @@ export const useMidiStore = create<MidiStoreState>()(
         midiMeasuresVisible: state.midiMeasuresVisible,
         midiLoopRollPlacement: state.midiLoopRollPlacement,
         midiLayerPlacement: state.midiLayerPlacement,
-        midiViewMeasureIndex: state.midiViewMeasureIndex,
-        midiPlayheadBeat: state.midiPlayheadBeat,
       }),
-      merge: (persistedState, currentState) => {
-        const p = (persistedState ?? {}) as Record<string, unknown>;
-        return {
-          ...currentState,
-          ...p,
-          midiPlayheadBeat: p.midiPlayheadBeat as number,
-        } as MidiStoreState;
-      },
     },
   ),
 );

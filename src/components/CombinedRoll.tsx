@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useMidiStore } from "../store/midiStore";
+import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { usePlayheadDrag } from "../hooks/usePlayheadDrag";
@@ -73,7 +74,7 @@ function CombinedRollNote({ item }: { item: VisibleNote }) {
       onPointerDown={(e) => e.stopPropagation()}
     >
       {showOctaveBadge && (
-        <span className="mnote-octave-badge">{item.octave + 1}</span>
+        <span className="mnote-octave-badge">{item.loopNote.octave + 1}</span>
       )}
     </button>
   );
@@ -81,20 +82,22 @@ function CombinedRollNote({ item }: { item: VisibleNote }) {
 
 export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
   const {
-    midiViewMeasureIndex,
     midiMeasuresVisible,
-    midiPlayheadBeat,
     midiRollCount,
     midiRollSplitByRootOctave,
     midiLoopRollPlacement,
   } = useMidiStore(
     useShallow((s) => ({
-      midiViewMeasureIndex: s.midiViewMeasureIndex,
       midiMeasuresVisible: s.midiMeasuresVisible,
-      midiPlayheadBeat: s.midiPlayheadBeat,
       midiRollCount: s.midiRollCount,
       midiRollSplitByRootOctave: s.midiRollSplitByRootOctave,
       midiLoopRollPlacement: s.midiLoopRollPlacement,
+    })),
+  );
+  const { midiViewMeasureIndex, midiPlayheadBeat } = useTransportStore(
+    useShallow((s) => ({
+      midiViewMeasureIndex: s.viewMeasureIndex,
+      midiPlayheadBeat: s.playheadBeat,
     })),
   );
   const {
@@ -139,9 +142,9 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
     const result: VisibleNote[] = [];
     for (const note of notes) {
       if (note.absoluteEndBeat == null) continue;
-      if (!isNoteOnRoll(note.layerId, note.loopIndex, note.octave, rollSlot))
+      if (!isNoteOnRoll(note.layerId, note.loopIndex, note.loopNote.octave, rollSlot))
         continue;
-      const rowIndex = pitchClassRowIndex(note.pitchClass, musicalKey);
+      const rowIndex = pitchClassRowIndex(note.loopNote.pitchClass, musicalKey);
       const resolvedEnd = resolveTimelineNoteEndBeat(
         note.absoluteStartBeat,
         note.absoluteEndBeat,
@@ -187,7 +190,7 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
       );
       return { startBeat, endBeat };
     },
-    onSeek: useMidiStore.getState().setMidiPlayheadBeat,
+    onSeek: useTransportStore.getState().setPlayheadBeat,
   });
 
   return (
@@ -328,7 +331,7 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
                 .filter(
                   (n) =>
                     n.absoluteEndBeat == null &&
-                    isNoteOnRoll(n.layerId, n.loopIndex, n.octave, rollSlot),
+                    isNoteOnRoll(n.layerId, n.loopIndex, n.loopNote.octave, rollSlot),
                 )
                 .map((n) => {
                   const resolvedEnd = resolveTimelineNoteEndBeat(
@@ -342,7 +345,7 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
                     resolvedEnd,
                     beatLength,
                   );
-                  const rowIndex = pitchClassRowIndex(n.pitchClass, musicalKey);
+                  const rowIndex = pitchClassRowIndex(n.loopNote.pitchClass, musicalKey);
                   return (
                     <div
                       key={`rec-${n.reactKey}`}

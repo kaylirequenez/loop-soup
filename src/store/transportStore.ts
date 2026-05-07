@@ -15,10 +15,14 @@ export const useTransportStore = create<TransportStoreState>()((set) => ({
   isPlaying: false,
   extendOn: false,
   transportNonce: 0,
+  playheadBeat: 0,
+  viewMeasureIndex: 0,
 
   setPlaying: (value) => set({ isPlaying: value }),
   togglePlaying: () => set((s) => ({ isPlaying: !s.isPlaying })),
   setExtendOn: (value) => set({ extendOn: value }),
   toggleExtendOn: () => set((s) => ({ extendOn: !s.extendOn })),
   bumpTransportNonce: () => set((s) => ({ transportNonce: s.transportNonce + 1 })),
+  setPlayheadBeat: (beat) => set({ playheadBeat: beat }),
+  setViewMeasureIndex: (index) => set({ viewMeasureIndex: index }),
 }));

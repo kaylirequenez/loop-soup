@@ -73,21 +73,20 @@ export default function BottomControls() {
       meter.beatsPerMeasure,
     ),
   };
-  const {
-    midiMeasuresVisible,
-    midiViewMeasureIndex,
-    setMidiPlayheadBeat,
-    setMidiMeasuresVisible,
-    setMidiViewMeasureIndex,
-  } = useMidiStore(
+  const { midiMeasuresVisible, setMidiMeasuresVisible } = useMidiStore(
     useShallow((s) => ({
       midiMeasuresVisible: s.midiMeasuresVisible,
-      midiViewMeasureIndex: s.midiViewMeasureIndex,
-      setMidiPlayheadBeat: s.setMidiPlayheadBeat,
       setMidiMeasuresVisible: s.setMidiMeasuresVisible,
-      setMidiViewMeasureIndex: s.setMidiViewMeasureIndex,
     })),
   );
+  const { midiViewMeasureIndex, setPlayheadBeat, setViewMeasureIndex } =
+    useTransportStore(
+      useShallow((s) => ({
+        midiViewMeasureIndex: s.viewMeasureIndex,
+        setPlayheadBeat: s.setPlayheadBeat,
+        setViewMeasureIndex: s.setViewMeasureIndex,
+      })),
+    );
 
   const activeLoopData =
     selectedLoopId != null
@@ -125,7 +124,7 @@ export default function BottomControls() {
 
   const handleEndRecording = () => {
     const es = useLayerEditorStore.getState();
-    const endBeat = useMidiStore.getState().midiPlayheadBeat;
+    const endBeat = useTransportStore.getState().playheadBeat;
     if (es.selectedLoopId !== null) {
       useLayerStore
         .getState()
@@ -143,15 +142,15 @@ export default function BottomControls() {
 
   const handleRestartFromStart = () => {
     bumpTransportNonce();
-    setMidiPlayheadBeat(0);
-    setMidiViewMeasureIndex(0);
+    setPlayheadBeat(0);
+    setViewMeasureIndex(0);
   };
 
   const handleSnapPlayhead = () => snapPlayheadToView(midiViewMeasureIndex);
   const handleAddMeasure = () => {
     const newTotal = totalMeasures + 1;
     setTotalMeasures(newTotal);
-    setMidiViewMeasureIndex(newTotal - midiMeasuresVisible);
+    setViewMeasureIndex(newTotal - midiMeasuresVisible);
   };
 
   const handleRemoveMeasure = () => {
@@ -302,7 +301,7 @@ export default function BottomControls() {
                     className="btn"
                     disabled={!canTransposeDown}
                     onClick={() => {
-                      if (selectedLoopId) {
+                      if (selectedLoopId != null) {
                         shiftLoopNotesOctave(
                           selectedLayerId,
                           selectedLoopId,
@@ -318,7 +317,7 @@ export default function BottomControls() {
                     className="btn"
                     disabled={!canTransposeUp}
                     onClick={() => {
-                      if (selectedLoopId) {
+                      if (selectedLoopId != null) {
                         shiftLoopNotesOctave(
                           selectedLayerId,
                           selectedLoopId,

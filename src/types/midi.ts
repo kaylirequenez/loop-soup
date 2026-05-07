@@ -20,10 +20,6 @@ export interface MidiStoreState {
   midiRollSplitByRootOctave: boolean;
   /** Number of measures currently visible in the roll viewport. */
   midiMeasuresVisible: number;
-  /** 0-based index of the leftmost visible measure. */
-  midiViewMeasureIndex: number;
-  /** 0-based playhead beat inside composition timeline. */
-  midiPlayheadBeat: number;
   /** Per-layer/per-loop assignment to roll slot(s). */
   midiLoopRollPlacement: MidiLoopRollPlacementMap;
   /** Layer-level placement summary (`null` when loops are mixed). */
@@ -32,8 +28,6 @@ export interface MidiStoreState {
   toggleSecondRoll: () => void;
   setMidiRollSplitByRootOctave: (enabled: boolean) => void;
   setMidiMeasuresVisible: (value: number) => void;
-  setMidiViewMeasureIndex: (value: number) => void;
-  setMidiPlayheadBeat: (beat: number) => void;
   setMidiLayerRollPlacement: (
     layerId: LayerId,
     placement: MidiRollPlacement,

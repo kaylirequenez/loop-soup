@@ -1,4 +1,5 @@
 import type { LayerId } from "./layer";
+import type { LoopNote } from "./layer";
 
 /**
  * One materialized note occurrence on the composition timeline (absolute beats).
@@ -13,10 +14,9 @@ export interface TimelineNoteFractionRect {
   widthFract: number;
 }
 
-/** A timeline note augmented with the pitch fields needed to render it on a roll. */
+/** A timeline note augmented with the source LoopNote needed to render it on a roll. */
 export type RawRollNote = TimelineExpandedNote & {
-  pitchClass: number;
-  octave: number;
+  loopNote: LoopNote;
   reactKey: string;
   /** Array index of the loop within its layer's layerLoops. */
   loopIndex: number;
