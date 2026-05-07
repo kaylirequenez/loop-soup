@@ -8,7 +8,6 @@ import { usePlayheadDrag } from "../hooks/usePlayheadDrag";
 import { Nowbar } from "./Nowbar";
 import { chromaticOctaveRows, pitchClassRowIndex } from "../utils/pitch";
 import type { RollSlot } from "../types/midi";
-import type { LayerId } from "../types/layer";
 import type { RawRollNote, TimelineNoteFractionRect } from "../types/timeline";
 import {
   resolveTimelineNoteEndBeat,
@@ -94,10 +93,10 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
       midiLoopRollPlacement: s.midiLoopRollPlacement,
     })),
   );
-  const { midiViewMeasureIndex, midiPlayheadBeat } = useTransportStore(
+  const { viewMeasureIndex, playheadBeat } = useTransportStore(
     useShallow((s) => ({
-      midiViewMeasureIndex: s.viewMeasureIndex,
-      midiPlayheadBeat: s.playheadBeat,
+      viewMeasureIndex: s.viewMeasureIndex,
+      playheadBeat: s.playheadBeat,
     })),
   );
   const {
@@ -142,13 +141,20 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
     const result: VisibleNote[] = [];
     for (const note of notes) {
       if (note.absoluteEndBeat == null) continue;
-      if (!isNoteOnRoll(note.layerId, note.loopIndex, note.loopNote.octave, rollSlot))
+      if (
+        !isNoteOnRoll(
+          note.layerId,
+          note.loopIndex,
+          note.loopNote.octave,
+          rollSlot,
+        )
+      )
         continue;
       const rowIndex = pitchClassRowIndex(note.loopNote.pitchClass, musicalKey);
       const resolvedEnd = resolveTimelineNoteEndBeat(
         note.absoluteStartBeat,
         note.absoluteEndBeat,
-        midiPlayheadBeat,
+        playheadBeat,
         beatLength,
       );
       const { leftFract, widthFract } = timelineNoteFractionRect(
@@ -177,20 +183,19 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
     [visibleNotes],
   );
 
-  const stripTranslatePct = (midiViewMeasureIndex / totalMeasures) * 100;
+  const stripTranslatePct = (viewMeasureIndex / totalMeasures) * 100;
   const stripWidthPct = (totalMeasures / midiMeasuresVisible) * 100;
-  const rightmostVisibleMeasureIdx =
-    midiViewMeasureIndex + midiMeasuresVisible - 1;
+  const rightmostVisibleMeasureIdx = viewMeasureIndex + midiMeasuresVisible - 1;
   const handlePlayheadDrag = usePlayheadDrag<HTMLDivElement>({
     getBeatWindow: () => {
-      const startBeat = midiViewMeasureIndex * beatsPerMeasure;
+      const startBeat = viewMeasureIndex * beatsPerMeasure;
       const endBeat = Math.min(
         beatLength,
-        (midiViewMeasureIndex + midiMeasuresVisible) * beatsPerMeasure,
+        (viewMeasureIndex + midiMeasuresVisible) * beatsPerMeasure,
       );
       return { startBeat, endBeat };
     },
-    onSeek: useTransportStore.getState().setPlayheadBeat,
+    onSeek: () => {},
   });
 
   return (
@@ -268,7 +273,7 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
                       </div>
                     ))}
                     <Nowbar
-                      beat={midiPlayheadBeat}
+                      beat={playheadBeat}
                       startBeat={mIdx * beatsPerMeasure}
                       endBeat={(mIdx + 1) * beatsPerMeasure}
                       className="mroll-ph"
@@ -331,13 +336,18 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
                 .filter(
                   (n) =>
                     n.absoluteEndBeat == null &&
-                    isNoteOnRoll(n.layerId, n.loopIndex, n.loopNote.octave, rollSlot),
+                    isNoteOnRoll(
+                      n.layerId,
+                      n.loopIndex,
+                      n.loopNote.octave,
+                      rollSlot,
+                    ),
                 )
                 .map((n) => {
                   const resolvedEnd = resolveTimelineNoteEndBeat(
                     n.absoluteStartBeat,
                     null,
-                    midiPlayheadBeat,
+                    playheadBeat,
                     beatLength,
                   );
                   const { leftFract, widthFract } = timelineNoteFractionRect(
@@ -345,7 +355,10 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
                     resolvedEnd,
                     beatLength,
                   );
-                  const rowIndex = pitchClassRowIndex(n.loopNote.pitchClass, musicalKey);
+                  const rowIndex = pitchClassRowIndex(
+                    n.loopNote.pitchClass,
+                    musicalKey,
+                  );
                   return (
                     <div
                       key={`rec-${n.reactKey}`}

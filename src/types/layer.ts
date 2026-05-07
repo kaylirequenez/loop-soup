@@ -35,6 +35,8 @@ export interface LoopNote {
   startInBeat: number;
   /** null while the note is still being recorded (duration unknown). */
   lengthInBeat: number | null;
+  /** Optional note intensity in [0, 1]. Defaults to 1 when omitted. */
+  velocity?: number;
 }
 
 /** Placed instance row (placement + per-instance repeat count only). Shared repeat spacing lives on `LoopDefinition`. */

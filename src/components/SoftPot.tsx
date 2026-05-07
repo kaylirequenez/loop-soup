@@ -15,7 +15,9 @@ import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerStore } from "../store/layerStore";
 import { useTransportStore } from "../store/transportStore";
 import { usePointerDrag } from "../hooks/usePointerDrag";
-import { audioEngine, midiToFreq } from "../audio/audioEngine";
+import { audioEngine } from "../audio/audioEngine";
+import { midiToFrequency } from "../audio/toneUnits";
+import { transportBeat } from "../utils/midiTransport";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
 const SOFTPOT_STEPS = 24;
@@ -93,7 +95,7 @@ export default function SoftPot() {
       const loopId = editor.selectedLoopId;
       if (loopId === null) return;
       const roundedMidi = Math.round(midi);
-      const startBeat = useTransportStore.getState().playheadBeat;
+      const startBeat = transportBeat();
       noteStartBeatRef.current = startBeat;
       capturedMidiRef.current = roundedMidi;
       recordingTargetRef.current = {
@@ -117,7 +119,7 @@ export default function SoftPot() {
       noteStartBeatRef.current !== null &&
       capturedMidiRef.current !== null
     ) {
-      const endBeat = useTransportStore.getState().playheadBeat;
+      const endBeat = transportBeat();
       useLayerStore.getState().endLoopNote(
         target.layerId,
         target.loopId,
@@ -185,7 +187,7 @@ export default function SoftPot() {
       );
       const midi = topMidi - (relative * SOFTPOT_STEPS - 0.5);
       updateStripFromPointer(element, event.clientY);
-      beginGesture(midiToFreq(midi));
+      beginGesture(midiToFrequency(midi));
       captureNoteStart(midi);
     },
     onMove: (element, moveEvent) => {
@@ -200,7 +202,7 @@ export default function SoftPot() {
       const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
       setSoftpotToAllowedRow(row);
       lastPreviewRowRef.current = clampedRow;
-      beginGesture(midiToFreq(chromoRows[clampedRow].midi));
+      beginGesture(midiToFrequency(chromoRows[clampedRow].midi));
       captureNoteStart(chromoRows[clampedRow].midi);
     },
     onMove: (noteCol, moveEvent) => {
@@ -211,7 +213,11 @@ export default function SoftPot() {
         lastPreviewRowRef.current = clampedRow;
         const soundId = capturedSoundIdRef.current;
         if (soundId !== null) {
-          audioEngine.updatePreviewNote(selectedLayer, soundId, midiToFreq(chromoRows[clampedRow].midi));
+          audioEngine.updatePreviewNote(
+            selectedLayer,
+            soundId,
+            midiToFrequency(chromoRows[clampedRow].midi),
+          );
         }
       }
     },

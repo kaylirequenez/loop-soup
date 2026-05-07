@@ -18,13 +18,13 @@ const OPEN_NOTE_MIN_DISPLAY_BEATS = 0.25;
  *
  * Behavior:
  * - Closed notes clamp to composition length.
- * - Open notes (`absoluteEndBeat == null`) extend to `midiPlayheadBeat`, with a
+ * - Open notes (`absoluteEndBeat == null`) extend to `playheadBeat`, with a
  *   minimum of `OPEN_NOTE_MIN_DISPLAY_BEATS` so the note is visible on press.
  */
 export function resolveTimelineNoteEndBeat(
   absoluteStartBeat: number,
   absoluteEndBeat: number | null,
-  midiPlayheadBeat: number,
+  playheadBeat: number,
   compositionEndBeat: number,
 ): number {
   const cap = compositionEndBeat;
@@ -33,7 +33,7 @@ export function resolveTimelineNoteEndBeat(
   }
   return Math.min(
     cap,
-    Math.max(absoluteStartBeat + OPEN_NOTE_MIN_DISPLAY_BEATS, midiPlayheadBeat),
+    Math.max(absoluteStartBeat + OPEN_NOTE_MIN_DISPLAY_BEATS, playheadBeat),
   );
 }
 

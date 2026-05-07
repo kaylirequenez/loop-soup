@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TransportStoreState } from "../types/transport";
+import { transportDebug } from "../utils/transportDebug";
 
 export const TRANSPORT_STORE_KEY = "loop-soup-transport";
 
@@ -9,20 +10,38 @@ export const TRANSPORT_STORE_KEY = "loop-soup-transport";
  * Owns runtime transport toggles/signals only:
  * - play/pause state
  * - add / extend toggles
- * - nonce used to retrigger transport side effects
+ * - playhead beat + MIDI view window anchor
  */
 export const useTransportStore = create<TransportStoreState>()((set) => ({
   isPlaying: false,
   extendOn: false,
-  transportNonce: 0,
   playheadBeat: 0,
   viewMeasureIndex: 0,
 
-  setPlaying: (value) => set({ isPlaying: value }),
-  togglePlaying: () => set((s) => ({ isPlaying: !s.isPlaying })),
+  setPlaying: (value) =>
+    set((s) => {
+      transportDebug("setPlaying", { from: s.isPlaying, to: value });
+      return { isPlaying: value };
+    }),
+  togglePlaying: () =>
+    set((s) => {
+      const next = !s.isPlaying;
+      transportDebug("togglePlaying", { from: s.isPlaying, to: next });
+      return { isPlaying: next };
+    }),
   setExtendOn: (value) => set({ extendOn: value }),
   toggleExtendOn: () => set((s) => ({ extendOn: !s.extendOn })),
-  bumpTransportNonce: () => set((s) => ({ transportNonce: s.transportNonce + 1 })),
-  setPlayheadBeat: (beat) => set({ playheadBeat: beat }),
-  setViewMeasureIndex: (index) => set({ viewMeasureIndex: index }),
+  setPlayheadBeat: (beat) =>
+    set((s) => {
+      transportDebug("setPlayheadBeat", { from: s.playheadBeat, to: beat });
+      return { playheadBeat: beat };
+    }),
+  setViewMeasureIndex: (index) =>
+    set((s) => {
+      transportDebug("setViewMeasureIndex", {
+        from: s.viewMeasureIndex,
+        to: index,
+      });
+      return { viewMeasureIndex: index };
+    }),
 }));

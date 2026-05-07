@@ -60,7 +60,8 @@ export class LoopTimeline {
    * Recompute every loop’s expansion from current `layers` and composition bounds.
    */
   rebuildAll(layers: LayersState): void {
-    const beatsPerMeasure = useCompositionStore.getState().meter.beatsPerMeasure;
+    const beatsPerMeasure =
+      useCompositionStore.getState().meter.beatsPerMeasure;
     this.map.clear();
     for (const layerId of LAYER_IDS) {
       const layer = layers[layerId];
@@ -84,7 +85,8 @@ export class LoopTimeline {
     loopId: LayerLoopId,
     layers: LayersState,
   ): void {
-    const beatsPerMeasure = useCompositionStore.getState().meter.beatsPerMeasure;
+    const beatsPerMeasure =
+      useCompositionStore.getState().meter.beatsPerMeasure;
     const loop = layers[layerId]?.layerLoops[loopId];
     const key = cacheKey(layerId, loopId);
     if (!loop) {
@@ -92,10 +94,7 @@ export class LoopTimeline {
       this.notify();
       return;
     }
-    this.map.set(
-      key,
-      this.expandLoop(layerId, loop, beatsPerMeasure),
-    );
+    this.map.set(key, this.expandLoop(layerId, loop, beatsPerMeasure));
     this.notify();
   }
 
@@ -201,7 +200,6 @@ export class LoopTimeline {
       }
 
       repeatOffsets.forEach((repeatOffsetBeats, r) => {
-
         for (const base of phraseNoteBases) {
           const absoluteStartBeat =
             instance.startBeat + repeatOffsetBeats + base.relativeStartInPhrase;

@@ -70,12 +70,11 @@ export default function CompositionView() {
       midiMeasuresVisible: s.midiMeasuresVisible,
     })),
   );
-  const { midiPlayheadBeat, setMidiPlayheadBeat, setMidiViewMeasureIndex } =
+  const { playheadBeat, setViewMeasureIndex } =
     useTransportStore(
       useShallow((s) => ({
-        midiPlayheadBeat: s.playheadBeat,
-        setMidiPlayheadBeat: s.setPlayheadBeat,
-        setMidiViewMeasureIndex: s.setViewMeasureIndex,
+        playheadBeat: s.playheadBeat,
+        setViewMeasureIndex: s.setViewMeasureIndex,
       })),
     );
   const timelineRevision = useSyncExternalStore(
@@ -121,15 +120,12 @@ export default function CompositionView() {
 
   const handleRulerDrag = usePlayheadDrag<HTMLDivElement>({
     getBeatWindow: () => ({ startBeat: 0, endBeat: compositionBeats }),
-    onSeek: setMidiPlayheadBeat,
-    onResume: () => {
-      useTransportStore.getState().bumpTransportNonce();
-    },
+    onSeek: () => {},
     onDragEnd: () => {
       const beat = useTransportStore.getState().playheadBeat;
       const targetMeasure = Math.floor(beat / beatsPerMeasure);
       const maxStart = Math.max(0, totalMeasures - midiMeasuresVisible);
-      setMidiViewMeasureIndex(Math.max(0, Math.min(maxStart, targetMeasure)));
+      setViewMeasureIndex(Math.max(0, Math.min(maxStart, targetMeasure)));
     },
   });
 
@@ -241,7 +237,7 @@ export default function CompositionView() {
                 const resolvedEnd = resolveTimelineNoteEndBeat(
                   noteRow.absoluteStartBeat,
                   noteRow.absoluteEndBeat,
-                  midiPlayheadBeat,
+                  playheadBeat,
                   compositionBeats,
                 );
                 const { leftFract, widthFract } = timelineNoteFractionRect(
@@ -306,7 +302,7 @@ export default function CompositionView() {
         className={`comp-nowbar-wrap ${showRollPlacement ? "comp-nowbar-wrap--roll-pick" : ""}`}
       >
         <Nowbar
-          beat={midiPlayheadBeat}
+          beat={playheadBeat}
           startBeat={0}
           endBeat={compositionBeats}
           className="comp-nowbar"

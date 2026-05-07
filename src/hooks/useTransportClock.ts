@@ -1,93 +1,162 @@
 import { useEffect } from "react";
-import { useShallow } from "zustand/react/shallow";
-import { getContext as getToneContext, getTransport } from "tone";
+import { getTransport } from "tone";
+import type { Meter } from "../types/composition";
 import { useMidiStore } from "../store/midiStore";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerStore } from "../store/layerStore";
-import { wrapBeat, playheadMeasureIndex } from "../utils/midiTransport";
-import { loopTimeline } from "../utils/loopTimeline";
+import {
+  playheadMeasureIndex,
+  seekTransportBeat,
+  transportBeat,
+} from "../utils/midiTransport";
 import { clamp } from "../utils";
 import { compositionLoopBeatLength } from "../utils/compositionState";
 import { audioEngine } from "../audio/audioEngine";
-
-const MAX_AUDIO_DT = 0.25;
+import { transportDebug } from "../utils/transportDebug";
 
 export function useTransportClock() {
-  const { isPlaying, transportNonce } = useTransportStore(
-    useShallow((s) => ({
-      isPlaying: s.isPlaying,
-      transportNonce: s.transportNonce,
-    })),
-  );
+  const isPlaying = useTransportStore((s) => s.isPlaying);
+
+  useEffect(() => {
+    const transport = getTransport();
+    const applyTransportConfig = (
+      bpm: number,
+      meter: Meter,
+      totalMeasures: number,
+    ) => {
+      const beatLength = compositionLoopBeatLength(
+        totalMeasures,
+        meter.beatsPerMeasure,
+      );
+      const loopStartPosition = "0:0:0";
+      const loopEndPosition = `${totalMeasures}:0:0`;
+      transport.bpm.value = clamp(bpm, 40, 240);
+      transport.timeSignature = [meter.beatsPerMeasure, meter.noteValue];
+      transport.loopStart = loopStartPosition;
+      transport.loopEnd = loopEndPosition;
+      transportDebug("applyTransportConfig", {
+        bpm: transport.bpm.value,
+        meter: meter.toString(),
+        totalMeasures,
+        beatLength,
+        loopStartPosition,
+        loopEndPosition,
+        loopEnd: transport.loopEnd,
+      });
+    };
+
+    const initial = useCompositionStore.getState();
+    let lastBpm = initial.bpm;
+    let lastMeter = initial.meter;
+    let lastTotalMeasures = initial.totalMeasures;
+    applyTransportConfig(lastBpm, lastMeter, lastTotalMeasures);
+
+    const unsubComposition = useCompositionStore.subscribe((state) => {
+      const nextBpm = state.bpm;
+      const nextMeter = state.meter;
+      const nextTotalMeasures = state.totalMeasures;
+      if (
+        nextBpm === lastBpm &&
+        nextMeter.beatsPerMeasure === lastMeter.beatsPerMeasure &&
+        nextMeter.noteValue === lastMeter.noteValue &&
+        nextTotalMeasures === lastTotalMeasures
+      ) {
+        return;
+      }
+      lastBpm = nextBpm;
+      lastMeter = nextMeter;
+      lastTotalMeasures = nextTotalMeasures;
+      applyTransportConfig(nextBpm, nextMeter, nextTotalMeasures);
+    });
+
+    return () => {
+      unsubComposition();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isPlaying) return undefined;
 
-    const { bpm } = useCompositionStore.getState();
     const transport = getTransport();
-    transport.bpm.value = clamp(bpm, 40, 240);
-    transport.start();
+    transportDebug("clockEffect:start", {
+      state: transport.state,
+      ticks: transport.ticks,
+    });
 
-    let lastAudioSeconds = transport.seconds;
-    let currentBeat = useTransportStore.getState().playheadBeat;
+    // Seek to the user-visible playhead position before Transport starts.
+    const startBeat = useTransportStore.getState().playheadBeat;
+    seekTransportBeat(startBeat);
+    transport.loop = true;
+    transportDebug("clockEffect:seek+loop", {
+      startBeat,
+      ticks: transport.ticks,
+      loop: transport.loop,
+    });
+    // Transport.start() is called by useAudioScheduler after Parts are built.
+
+    const onLoop = () => {
+      transportDebug("transport:loop", { ticks: transport.ticks });
+      audioEngine.cancelAll();
+      const es = useLayerEditorStore.getState();
+      if (es.isRecordingLoop && es.selectedLoopId !== null) {
+        const { meter, totalMeasures } = useCompositionStore.getState();
+        const loopBeatLength = compositionLoopBeatLength(
+          totalMeasures,
+          meter.beatsPerMeasure,
+        );
+        useLayerStore
+          .getState()
+          .finalizeLoop(es.selectedLayerId, es.selectedLoopId, loopBeatLength);
+        es.stopRecording();
+      }
+    };
+    transport.on("loop", onLoop);
+
     let rafId = 0;
 
     const tick = () => {
       if (!useTransportStore.getState().isPlaying) return;
 
-      const audioNow = transport.seconds;
-      const dt = Math.max(0, Math.min(audioNow - lastAudioSeconds, MAX_AUDIO_DT));
-      lastAudioSeconds = audioNow;
-
-      const { meter, totalMeasures, bpm } = useCompositionStore.getState();
-      const beatsPerMeasure = meter.beatsPerMeasure;
-      const beatLength = compositionLoopBeatLength(totalMeasures, beatsPerMeasure);
-      transport.bpm.value = clamp(bpm, 40, 240);
-      const bps = clamp(bpm, 40, 240) / 60;
-
-      const rawBeat = currentBeat + dt * bps;
-
-      const wrapping = rawBeat >= beatLength;
-      if (wrapping) {
-        const es = useLayerEditorStore.getState();
-        if (es.isRecordingLoop) {
-          if (es.selectedLoopId !== null) {
-            useLayerStore
-              .getState()
-              .finalizeLoop(es.selectedLayerId, es.selectedLoopId, beatLength);
-          }
-          es.stopRecording();
-        }
-        audioEngine.cancelAll();
-      }
-
-      currentBeat = wrapBeat(rawBeat, beatLength);
-
-      audioEngine.scheduleLookahead(
-        currentBeat,
-        getToneContext().currentTime,
-        bps,
-        useLayerStore.getState().layers,
-        (layerId, loopId) => loopTimeline.getNotesForLoop(layerId, loopId),
-      );
+      const currentBeat = transportBeat();
+      const { meter: currentMeter, totalMeasures: currentTotalMeasures } =
+        useCompositionStore.getState();
 
       const { midiMeasuresVisible } = useMidiStore.getState();
-      const playheadIdx = playheadMeasureIndex(currentBeat, beatsPerMeasure);
-      const visible = Math.max(1, Math.min(midiMeasuresVisible, totalMeasures));
-      const maxStart = Math.max(0, totalMeasures - visible);
+      const playheadIdx = playheadMeasureIndex(
+        currentBeat,
+        currentMeter.beatsPerMeasure,
+      );
+      const visible = Math.max(
+        1,
+        Math.min(midiMeasuresVisible, currentTotalMeasures),
+      );
+      const maxStart = Math.max(0, currentTotalMeasures - visible);
       const viewMeasureIndex = Math.max(0, Math.min(maxStart, playheadIdx));
 
-      useTransportStore.setState({ playheadBeat: currentBeat, viewMeasureIndex });
+      useTransportStore.setState({
+        playheadBeat: currentBeat,
+        viewMeasureIndex,
+      });
+      transportDebug("tick:updatePlayhead", {
+        currentBeat,
+        viewMeasureIndex,
+        ticks: transport.ticks,
+      });
 
       rafId = requestAnimationFrame(tick);
     };
 
     rafId = requestAnimationFrame(tick);
+
     return () => {
       cancelAnimationFrame(rafId);
-      transport.stop();
+      transport.off("loop", onLoop);
+      transportDebug("clockEffect:cleanupDetach", {
+        state: transport.state,
+        ticks: transport.ticks,
+      });
     };
-  }, [isPlaying, transportNonce]);
+  }, [isPlaying]);
 }

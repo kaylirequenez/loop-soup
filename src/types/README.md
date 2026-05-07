@@ -9,6 +9,7 @@ Global composition settings used by `compositionStore` and pitch/timeline helper
 
 Contains:
 - key/meter primitives (`MusicalKey`, `Meter`, etc.)
+- Tone unit aliases used across the app (`ToneFrequency`, `ToneMidi`, `ToneTicks`, `ToneTime`, `ToneTransportTime`, `ToneTimeBase`, `ToneNote`)
 - `CompositionStoreState`
 
 ### `layer.ts`

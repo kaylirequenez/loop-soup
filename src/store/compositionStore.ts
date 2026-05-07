@@ -23,7 +23,7 @@ export const useCompositionStore = create<CompositionStoreState>()(
   persist(
     (set, get) => ({
       bpm: 90,
-      key: { root: "A", accidental: null, mode: "min" },
+      key: { root: "A", mode: "min" },
       meter: { beatsPerMeasure: 4, noteValue: 4 },
       octave: 3,
       totalMeasures: 4,

@@ -8,7 +8,7 @@ const PREVIEW_ENVELOPE = { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.3 
 export function buildLayerSynth(soundId: NonNullable<SoundId>): PolySynth<Synth> {
   return new PolySynth(Synth, {
     oscillator: { type: soundId },
-  }).toDestination();
+  });
 }
 
 /** Per-layer synths for loop playback. Envelope is set dynamically from knob values. */

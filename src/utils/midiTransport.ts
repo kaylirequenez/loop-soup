@@ -1,10 +1,42 @@
+import { getContext, getTransport, immediate } from "tone";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
+import { audioEngine } from "../audio/audioEngine";
+import { transportDebug } from "./transportDebug";
+
+export function transportBeat(): number {
+  const transport = getTransport();
+  const context = getContext();
+  const rawContext = context.rawContext as { outputLatency?: number };
+  const outputLatency = rawContext.outputLatency ?? 0;
+  const audibleTime = Math.max(0, immediate() - outputLatency);
+  const beat = transport.getTicksAtTime(audibleTime) / transport.PPQ;
+  transportDebug("transportBeat()", {
+    ticks: transport.ticks,
+    beat,
+    audibleTime,
+    outputLatency,
+    state: transport.state,
+  });
+  return beat;
+}
+
+export function seekTransportBeat(targetBeat: number): void {
+  const transport = getTransport();
+  const fromTicks = transport.ticks;
+  transport.ticks = Math.round(targetBeat * transport.PPQ);
+  transportDebug("seekTransportBeat", {
+    targetBeat,
+    fromTicks,
+    toTicks: transport.ticks,
+    state: transport.state,
+  });
+  useTransportStore.getState().setPlayheadBeat(targetBeat);
+}
 
 /**
- * Snaps the playhead to beat 0 of `viewMeasureIndex` and bumps the transport
- * nonce so active playback restarts from the new position. Reads composition
- * state fresh from stores at call time.
+ * Snaps the playhead to beat 0 of `viewMeasureIndex`.
+ * Reads composition state fresh from stores at call time.
  *
  * This is the single entry point for both the BottomControls "restart view"
  * button and the MidiMeasureNav "⟲ now bar" button.
@@ -13,12 +45,16 @@ import { useCompositionStore } from "../store/compositionStore";
  */
 export function snapPlayheadToView(viewMeasureIndex: number): void {
   const { meter, totalMeasures } = useCompositionStore.getState();
-  const targetMeasure = Math.max(
-    0,
-    Math.min(totalMeasures - 1, viewMeasureIndex),
-  );
-  useTransportStore.getState().setPlayheadBeat(targetMeasure * meter.beatsPerMeasure);
-  useTransportStore.getState().bumpTransportNonce();
+  const targetMeasure = Math.max(0, Math.min(totalMeasures - 1, viewMeasureIndex));
+  const targetBeat = targetMeasure * meter.beatsPerMeasure;
+  transportDebug("snapPlayheadToView", {
+    viewMeasureIndex,
+    targetMeasure,
+    targetBeat,
+  });
+  // Set Transport.ticks directly so a mid-playback seek takes effect immediately.
+  seekTransportBeat(targetBeat);
+  audioEngine.cancelAll();
 }
 
 /**

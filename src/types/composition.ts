@@ -1,29 +1,56 @@
+import type {
+  BPM,
+  Frequency,
+  Note,
+  Ticks,
+  Time,
+  TimeSignature,
+  TransportTime,
+} from "tone/build/esm/core/type/Units";
+import { Midi, TimeClass } from "tone";
+
+/** Re-exported Tone.js unit types for app-wide scheduling/value contracts. */
+export type ToneFrequency = Frequency;
+export type ToneMidi = Parameters<typeof Midi>[0];
+export type ToneTicks = Ticks;
+export type ToneTime = Time;
+export type ToneTransportTime = TransportTime;
+export type ToneTimeBase = ConstructorParameters<typeof TimeClass>[0];
+export type ToneNote = Note;
+
 export type ScaleQuality = "maj" | "min";
-export type NoteLetter = "A" | "B" | "C" | "D" | "E" | "F" | "G";
-/** Currently only `sharp` is used in UX, but `flat` is kept for parsing compatibility. */
-export type Accidental = "sharp" | "flat" | null;
+/** Sharp-only key roots currently supported by UI and store. */
+export type KeyRoot =
+  | "C"
+  | "C#"
+  | "D"
+  | "D#"
+  | "E"
+  | "F"
+  | "F#"
+  | "G"
+  | "G#"
+  | "A"
+  | "A#"
+  | "B";
 
 export interface MusicalKey {
-  /** Natural note letter (no accidental applied yet). */
-  root: NoteLetter;
-  /** Optional accidental; null means natural note. */
-  accidental: Accidental;
+  /** Root key name (sharp spelling only). */
+  root: KeyRoot;
   /** Scale quality used for diatonic highlighting and pitch mapping. */
   mode: ScaleQuality;
 }
 
-export type NoteValue = 2 | 4 | 8 | 16 | 32;
-
 export interface Meter {
   /** Time-signature numerator (top number). */
-  beatsPerMeasure: number;
+  beatsPerMeasure: Extract<TimeSignature, number>;
   /** Time-signature denominator (bottom number). */
-  noteValue: NoteValue;
+  noteValue: Extract<TimeSignature, number>;
 }
 
 export interface CompositionStoreState {
   /** Global tempo in beats per minute. */
-  bpm: number;
+  bpm: BPM;
   /** Active project key signature. */
   key: MusicalKey;
   /** Active meter (time signature). */
@@ -33,7 +60,7 @@ export interface CompositionStoreState {
   /** Composition span in measures (1-indexed concept in UX). */
   totalMeasures: number;
 
-  setBpm: (value: number) => void;
+  setBpm: (value: BPM) => void;
   setKey: (value: MusicalKey) => void;
   setMeter: (value: Meter) => void;
   setOctave: (value: number) => void;

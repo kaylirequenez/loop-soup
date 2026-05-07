@@ -1,25 +1,11 @@
 import type { MusicalKey, ScaleQuality } from "../types/composition";
 import type { LoopNote } from "../types/layer";
-
-const KEY_TO_PITCH_CLASS: Record<string, number> = {
-  C: 0,
-  D: 2,
-  E: 4,
-  F: 5,
-  G: 7,
-  A: 9,
-  B: 11,
-};
+import { Frequency, Midi } from "tone";
 
 const SCALE_INTERVALS: Record<ScaleQuality, number[]> = {
   maj: [0, 2, 4, 5, 7, 9, 11],
   min: [0, 2, 3, 5, 7, 8, 10],
 };
-
-const NOTE_NAMES = [
-  "C", "C#", "D", "D#", "E", "F",
-  "F#", "G", "G#", "A", "A#", "B",
-];
 
 /** Inclusive MIDI bounds used by loop-note and softpot note selection. */
 export const LOOP_NOTE_MIDI_MIN = 12;
@@ -28,13 +14,11 @@ export const LOOP_NOTE_MIDI_MAX = 127;
 /**
  * Returns the pitch class (0–11) for the root of a musical key.
  *
- * @param key - MusicalKey with root letter, optional accidental, and mode.
+ * @param key - MusicalKey with sharp-spelled root and mode.
  */
 export function pitchClassFromKey(key: MusicalKey): number {
-  const base = KEY_TO_PITCH_CLASS[key.root] ?? 0;
-  const acc =
-    key.accidental === "sharp" ? 1 : key.accidental === "flat" ? -1 : 0;
-  return (((base + acc) % 12) + 12) % 12;
+  const midi = Frequency(`${key.root}4`).toMidi();
+  return (((Math.round(midi) % 12) + 12) % 12);
 }
 
 /**
@@ -58,7 +42,7 @@ export function chromaticOctaveRows(key: MusicalKey): string[] {
   const rootPc = pitchClassFromKey(key);
   return Array.from({ length: 12 }, (_, i) => {
     const pitchClass = (rootPc + (11 - i) + 12) % 12;
-    return NOTE_NAMES[pitchClass];
+    return Midi(12 + pitchClass).toNote().replace(/[0-9]/g, "");
   });
 }
 
@@ -126,7 +110,7 @@ export function softpotChromoRows(
     const stepsFromBottom = SOFTPOT_STEPS - 1 - i;
     const midi = lowest + stepsFromBottom;
     const pitchClass = ((midi % 12) + 12) % 12;
-    const name = NOTE_NAMES[pitchClass];
+    const name = Midi(12 + pitchClass).toNote().replace(/[0-9]/g, "");
     const noteOctave = Math.floor(midi / 12) - 1;
     const isRoot = pitchClass === rootPc;
     const label = isRoot ? `${name}${noteOctave}` : name;

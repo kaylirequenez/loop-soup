@@ -1,11 +1,16 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { audioEngine } from "../audio/audioEngine";
 import {
   compositionLoopBeatLength,
   maxMeasuresCompositionLimit,
 } from "../utils/compositionState";
 import { oneBasedRange } from "../utils";
-import { snapPlayheadToView } from "../utils/midiTransport";
+import {
+  seekTransportBeat,
+  snapPlayheadToView,
+  transportBeat,
+} from "../utils/midiTransport";
 import {
   getRepeatEveryForUnit,
   isRepeatDisabledForUnit,
@@ -21,11 +26,10 @@ import { IconRestartComposition, IconRestartView } from "../ui/restartIcons";
 import { RepeatUnit } from "../types/layer";
 
 export default function BottomControls() {
-  const { isPlaying, togglePlaying, bumpTransportNonce } = useTransportStore(
+  const { isPlaying, togglePlaying } = useTransportStore(
     useShallow((s) => ({
       isPlaying: s.isPlaying,
       togglePlaying: s.togglePlaying,
-      bumpTransportNonce: s.bumpTransportNonce,
     })),
   );
   const { meter, totalMeasures, setTotalMeasures } = useCompositionStore(
@@ -79,14 +83,12 @@ export default function BottomControls() {
       setMidiMeasuresVisible: s.setMidiMeasuresVisible,
     })),
   );
-  const { midiViewMeasureIndex, setPlayheadBeat, setViewMeasureIndex } =
-    useTransportStore(
-      useShallow((s) => ({
-        midiViewMeasureIndex: s.viewMeasureIndex,
-        setPlayheadBeat: s.setPlayheadBeat,
-        setViewMeasureIndex: s.setViewMeasureIndex,
-      })),
-    );
+  const { viewMeasureIndex, setViewMeasureIndex } = useTransportStore(
+    useShallow((s) => ({
+      viewMeasureIndex: s.viewMeasureIndex,
+      setViewMeasureIndex: s.setViewMeasureIndex,
+    })),
+  );
 
   const activeLoopData =
     selectedLoopId != null
@@ -124,7 +126,7 @@ export default function BottomControls() {
 
   const handleEndRecording = () => {
     const es = useLayerEditorStore.getState();
-    const endBeat = useTransportStore.getState().playheadBeat;
+    const endBeat = transportBeat();
     if (es.selectedLoopId !== null) {
       useLayerStore
         .getState()
@@ -141,12 +143,12 @@ export default function BottomControls() {
   }, [isPlaying]);
 
   const handleRestartFromStart = () => {
-    bumpTransportNonce();
-    setPlayheadBeat(0);
+    seekTransportBeat(0);
+    audioEngine.cancelAll();
     setViewMeasureIndex(0);
   };
 
-  const handleSnapPlayhead = () => snapPlayheadToView(midiViewMeasureIndex);
+  const handleSnapPlayhead = () => snapPlayheadToView(viewMeasureIndex);
   const handleAddMeasure = () => {
     const newTotal = totalMeasures + 1;
     setTotalMeasures(newTotal);

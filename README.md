@@ -43,6 +43,7 @@ npm run build
 - `src/types/README.md`
 - `docs/architecture/audio-data-model.md`
 - `docs/architecture/layer-loop-behavior.md`
+- `docs/architecture/tonejs-usage-guide.md`
 # loop soup - OUTDATED
 
 A browser-based ambient-electronic looping instrument. The performer builds music live using a single continuous-pitch interface — humming a melody or playing one directly — which the system analyzes to detect key, tempo, and meter. Five independent layers are then built up in real time: hook, bass, melody, harmony, and drums. Everything is performed live. There is no random generation and no pre-loaded content.

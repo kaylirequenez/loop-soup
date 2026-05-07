@@ -36,7 +36,7 @@ Contains:
 - `midiStore`: persisted roll layout/playhead UI state (`MidiStoreState`)
 - `layerEditorStore`: transient selection/focus state
 - `layerPlaybackStore`: transient manual mute + solo state
-- `transportStore`: transient transport toggles/nonces
+- `transportStore`: transient transport toggles + playhead/view runtime state
 
 ## Mapping rules
 
@@ -61,4 +61,4 @@ Persist:
 Do not persist by default:
 - editor selection
 - playback override state (mute/solo)
-- transport runtime toggles/nonces
+- transport runtime toggles and playhead/view state
