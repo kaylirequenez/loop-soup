@@ -153,6 +153,34 @@
   - Keep applying stop-first semantics to any new disposal path.
   - Validate via churn scenarios (rapid seek/stop/edit/restart).
 
+## Disposal Regression Checklist
+
+Use this smoke checklist whenever transport/scheduling/voice disposal logic changes:
+
+- [ ] Start playback, perform rapid seek while notes are held, confirm no hanging notes.
+- [ ] Play -> stop -> play repeatedly, confirm no stale Parts replay old events.
+- [ ] Edit loop notes during playback (add/delete/resize), confirm no duplicate triggers.
+- [ ] Delete a loop while playing, confirm no tail from disposed loop synth.
+- [ ] Toggle mute/solo across layers during playback, confirm no orphaned audible voices.
+- [ ] Change BPM/meter while paused/playing, confirm transport resumes cleanly.
+
+## Known Sound-Swap Limitation and Mitigation
+
+- **Current limitation**
+  - Layer default sound changes do not hot-swap already-built loop synths for
+    existing loop instances.
+  - Existing loops keep their current mapping/sound until that loop mapping is
+    updated or the loop is rebuilt.
+- **Why this is acceptable today**
+  - Preserves predictable playback during active scheduling and avoids abrupt
+    graph churn while notes may still be releasing.
+- **Mitigation policy**
+  - Keep current behavior explicit in UX/docs: layer default edits affect new loops
+    (and selected target mapping), not retroactive mass replacement.
+  - Route explicit per-loop mapping changes through runtime sync paths that can
+    update/rebuild deterministicly.
+  - Revisit true live hot-swap after LoopVoice ownership is in place.
+
 ## Refactor Suggestions for My Existing Stores
 
 - **Current**
@@ -171,10 +199,10 @@
 - [x] Introduce clear runtime sync boundary for layer-driven audio scheduling (`layerRuntimeSync`).
 - [x] Start transport lifecycle consolidation (`transportController`).
 - [x] Normalize part teardown ordering (`disposeAll` parity with stop-first).
-- [ ] Finish migrating remaining transport call sites to runtime controller entry points.
-- [ ] Add disposal regression checklist for stale parts/nodes/hanging notes.
+- [x] Finish migrating remaining transport call sites to runtime controller entry points.
+- [x] Add disposal regression checklist for stale parts/nodes/hanging notes.
 - [ ] Verify and document two-clock invariants (RAF nowbar vs optional Draw pulses).
-- [ ] Document known sound-swap limitation and mitigation with explicit follow-up.
+- [x] Document known sound-swap limitation and mitigation with explicit follow-up.
 - [ ] Add future extension points (quantize/swing/humanize/probability) after boundary hardening.
 
 ---

@@ -2,7 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useMidiStore } from "../../store/midiStore";
 import { useTransportStore } from "../../store/transportStore";
 import { useCompositionStore } from "../../store/compositionStore";
-import { playheadMeasureIndex } from "../../utils/midiTransport";
+import { playheadMeasureIndex } from "../../audio/transportController";
 import type { AppView } from "../../types/app";
 
 interface MidiMeasureNavProps {

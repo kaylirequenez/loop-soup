@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
+  getNowbarBeat,
   restartPlaybackFromBeat,
   seekTransportBeatAndPanic,
   snapPlayheadToMeasureStart,
@@ -10,9 +11,6 @@ import {
   maxMeasuresCompositionLimit,
 } from "../utils/compositionState";
 import { oneBasedRange } from "../utils";
-import {
-  transportBeat,
-} from "../utils/midiTransport";
 import {
   getRepeatEveryForUnit,
   isRepeatDisabledForUnit,
@@ -128,7 +126,7 @@ export default function BottomControls() {
 
   const handleEndRecording = () => {
     const es = useLayerEditorStore.getState();
-    const endBeat = transportBeat();
+    const endBeat = getNowbarBeat();
     if (es.selectedLoopId !== null) {
       useLayerStore
         .getState()

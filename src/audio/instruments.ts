@@ -52,7 +52,7 @@ export function buildPreviewSynth(
   return new PolySynth(Synth, {
     oscillator: { type: soundId },
     envelope: mappingEnvelope(mapping),
-  }).toDestination();
+  });
 }
 
 /** Per-layer synths for loop playback. Envelope is set dynamically from knob values. */

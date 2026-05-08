@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { getTransport } from "tone";
 import { useMidiStore } from "../store/midiStore";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
@@ -8,12 +7,12 @@ import { useLayerStore } from "../store/layerStore";
 import {
   applyTransportConfig,
   attachLoopHandler,
+  getTransportCursorSnapshot,
+  getNowbarBeat,
+  isTransportStarted,
+  playheadMeasureIndex,
   primePlaybackSession,
 } from "../audio/transportController";
-import {
-  playheadMeasureIndex,
-  transportBeat,
-} from "../utils/midiTransport";
 import { compositionLoopBeatLength } from "../utils/compositionState";
 import { audioEngine } from "../audio/audioEngine";
 
@@ -53,13 +52,12 @@ export function useTransportClock() {
   useEffect(() => {
     if (!isPlaying) return undefined;
 
-    const transport = getTransport();
-
     // Resume from paused Transport cursor (scheduler truth), not latency-shifted
     // UI playhead. Otherwise resume can jump backward by the display offset.
+    const cursor = getTransportCursorSnapshot();
     const startBeat =
-      transport.state === "paused"
-        ? transport.ticks / transport.PPQ
+      cursor.state === "paused"
+        ? cursor.ticks / cursor.ppq
         : useTransportStore.getState().playheadBeat;
     primePlaybackSession(startBeat);
     // Transport.start() is called by useAudioScheduler after Parts are built.
@@ -91,12 +89,12 @@ export function useTransportClock() {
       }
       // Prevent a brief UI jump when isPlaying flips true but Transport.start()
       // hasn't happened yet (useAudioScheduler starts it async after Parts build).
-      if (transport.state !== "started") {
+      if (!isTransportStarted()) {
         rafId = requestAnimationFrame(tick);
         return;
       }
 
-      const currentBeat = transportBeat();
+      const currentBeat = getNowbarBeat();
       const { followNowbar } = useTransportStore.getState();
       if (followNowbar) {
         const { meter: currentMeter, totalMeasures: currentTotalMeasures } =

@@ -20,8 +20,7 @@ export function syncTimelineLoop(
     layerId,
     loopId,
     layers[layerId].layerLoops[loopId],
-    (id, mapping) => audioEngine.buildPlaybackSynth(id, mapping),
-    (synth) => audioEngine.releasePlaybackSynth(synth),
+    (id, mapping) => audioEngine.createLoopVoice(id, mapping),
   );
 }
 
@@ -37,7 +36,6 @@ export function syncLoopMapping(
     layerId,
     loopId,
     loop.mapping,
-    (synth, mapping) => audioEngine.updatePlaybackSynthMapping(synth, mapping),
   );
 }
 
@@ -58,8 +56,7 @@ export function syncAddInstance(
     definition,
     instance,
     layers[layerId].layerLoops[loopId].mapping,
-    (id, mapping) => audioEngine.buildPlaybackSynth(id, mapping),
-    (synth) => audioEngine.releasePlaybackSynth(synth),
+    (id, mapping) => audioEngine.createLoopVoice(id, mapping),
   );
 }
 
@@ -80,8 +77,7 @@ export function syncRebuildInstance(
     layers[layerId].layerLoops[loopId].definition,
     instance,
     layers[layerId].layerLoops[loopId].mapping,
-    (id, mapping) => audioEngine.buildPlaybackSynth(id, mapping),
-    (synth) => audioEngine.releasePlaybackSynth(synth),
+    (id, mapping) => audioEngine.createLoopVoice(id, mapping),
   );
 }
 
@@ -172,8 +168,7 @@ export function syncTrimInstancesToComposition({
       layers[layerId].layerLoops[loopId].definition,
       instance,
       mapping,
-      (id, loopMapping) => audioEngine.buildPlaybackSynth(id, loopMapping),
-      (synth) => audioEngine.releasePlaybackSynth(synth),
+      (id, loopMapping) => audioEngine.createLoopVoice(id, loopMapping),
     );
   }
 }
@@ -213,8 +208,7 @@ export function syncExpandInstancesToComposition({
       layers[layerId].layerLoops[loopId].definition,
       instance,
       mapping,
-      (id, loopMapping) => audioEngine.buildPlaybackSynth(id, loopMapping),
-      (synth) => audioEngine.releasePlaybackSynth(synth),
+      (id, loopMapping) => audioEngine.createLoopVoice(id, loopMapping),
     );
   }
 }

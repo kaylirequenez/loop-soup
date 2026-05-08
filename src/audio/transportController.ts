@@ -4,8 +4,51 @@ import { clamp } from "../utils";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { audioEngine } from "./audioEngine";
+import { computeNowbarBeat } from "../utils/timingTestHarness";
 
 const TRANSPORT_START_LEAD_SECONDS = 0.05;
+
+type TransportState = "started" | "paused" | "stopped";
+
+export interface TransportCursorSnapshot {
+  state: TransportState;
+  ticks: number;
+  ppq: number;
+}
+
+/** Runtime-safe transport cursor snapshot for UI/controller call sites. */
+export function getTransportCursorSnapshot(): TransportCursorSnapshot {
+  const transport = getTransport();
+  return {
+    state: transport.state,
+    ticks: transport.ticks,
+    ppq: transport.PPQ,
+  };
+}
+
+export function isTransportStarted(): boolean {
+  return getTransportCursorSnapshot().state === "started";
+}
+
+/** Nowbar beat using the central timing policy from timingTestHarness. */
+export function getNowbarBeat(): number {
+  const transport = getTransport();
+  const { beat } = computeNowbarBeat(transport);
+  return beat;
+}
+
+/**
+ * 0-based measure index for a beat position.
+ *
+ * @param beat - Current playhead beat; should be in [0, beatLength) from wrapBeat.
+ * @param beatsPerMeasure - Beats per measure from the composition meter.
+ */
+export function playheadMeasureIndex(
+  beat: number,
+  beatsPerMeasure: number,
+): number {
+  return Math.floor(beat / beatsPerMeasure);
+}
 
 export function applyTransportConfig(
   bpm: number,

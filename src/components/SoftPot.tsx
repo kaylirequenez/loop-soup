@@ -15,7 +15,7 @@ import { useTransportStore } from "../store/transportStore";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 import { audioEngine } from "../audio/audioEngine";
 import { midiToFrequency } from "../audio/toneUnits";
-import { transportBeat } from "../utils/midiTransport";
+import { getNowbarBeat } from "../audio/transportController";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
 const SOFTPOT_STEPS = 24;
@@ -102,7 +102,7 @@ export default function SoftPot() {
       const loopId = editor.selectedLoopId;
       if (loopId === null) return;
       const roundedMidi = Math.round(midi);
-      const startBeat = transportBeat();
+      const startBeat = getNowbarBeat();
       noteStartBeatRef.current = startBeat;
       capturedMidiRef.current = roundedMidi;
       recordingTargetRef.current = {
@@ -126,7 +126,7 @@ export default function SoftPot() {
       noteStartBeatRef.current !== null &&
       capturedMidiRef.current !== null
     ) {
-      const endBeat = transportBeat();
+      const endBeat = getNowbarBeat();
       useLayerStore.getState().endLoopNote(
         target.layerId,
         target.loopId,

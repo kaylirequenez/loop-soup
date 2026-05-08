@@ -19,6 +19,7 @@ export function useAudioScheduler(): void {
     if (!isPlaying) return;
     let active = true;
     let playbackUnsub: (() => void) | undefined;
+    let layerUnsub: (() => void) | undefined;
 
     const layers = useLayerStore.getState().layers;
     const soundMap = new Map<LayerId, SoundId>(
@@ -39,13 +40,26 @@ export function useAudioScheduler(): void {
           audioEngine.setLayerMute(id, !audible);
         }
       };
+
+      const syncLayerVolumes = () => {
+        const currentLayers = useLayerStore.getState().layers;
+        for (const id of LAYER_IDS) {
+          audioEngine.setLayerVolume(id, currentLayers[id].volume);
+          audioEngine.setLayerSendLevels(id, {
+            reverb: currentLayers[id].defaultMapping.knobsByEffect.attack?.value ?? 0.12,
+            delay: currentLayers[id].defaultMapping.knobsByEffect.decay?.value ?? 0.08,
+          });
+        }
+      };
+
+      syncLayerVolumes();
       syncAudibility();
       playbackUnsub = useLayerPlaybackStore.subscribe(syncAudibility);
+      layerUnsub = useLayerStore.subscribe(syncLayerVolumes);
 
       partEngine.rebuildAll(
         latestLayers,
-        (layerId, mapping) => audioEngine.buildPlaybackSynth(layerId, mapping),
-        (synth) => audioEngine.releasePlaybackSynth(synth),
+        (layerId, mapping) => audioEngine.createLoopVoice(layerId, mapping),
       );
       startPlaybackSession();
     });
@@ -53,6 +67,7 @@ export function useAudioScheduler(): void {
     return () => {
       active = false;
       playbackUnsub?.();
+      layerUnsub?.();
       partEngine.disposeAll();
       audioEngine.cancelAll();
       stopPlaybackSession();

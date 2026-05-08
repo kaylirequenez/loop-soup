@@ -1,5 +1,4 @@
 import { Part, getTransport } from "tone";
-import type { PolySynth, Synth } from "tone";
 import type {
   LayerId,
   LayerLoop,
@@ -12,6 +11,7 @@ import { LAYER_IDS } from "../types/layer";
 import { repeatStrideBeats } from "../utils/loopInstanceUtils";
 import { useCompositionStore } from "../store/compositionStore";
 import { beatsToTicks, midiToFrequency, ticksToTicksTime } from "./toneUnits";
+import type { LoopVoice } from "./audioEngine";
 
 interface NotePayload {
   freq: number;
@@ -32,7 +32,7 @@ function definitionEvents(definition: LoopDefinition, ppq: number) {
 
 function buildPart(
   definition: LoopDefinition,
-  instrument: PolySynth<Synth>,
+  instrument: LoopVoice,
   instance: LayerLoopInstance,
 ): Part<NotePayload> | null {
   if (instance.endBeat == null || instance.endBeat < 0) return null;
@@ -74,13 +74,11 @@ class PartEngine {
     string,
     {
       part: Part<NotePayload>;
-      synth: PolySynth<Synth>;
-      loopSynthKey: string;
-      releaseSynth: (synth: PolySynth<Synth>) => void;
+      loopVoiceKey: string;
     }
   >();
-  private loopSynths = new Map<string, PolySynth<Synth>>();
-  private loopSynthRefs = new Map<string, number>();
+  private loopVoices = new Map<string, LoopVoice>();
+  private loopVoiceRefs = new Map<string, number>();
 
   private key(layerId: LayerId, loopId: number, instanceId: number): string {
     return `${layerId}:${loopId}:${instanceId}`;
@@ -90,42 +88,39 @@ class PartEngine {
     return `${layerId}:${loopId}`;
   }
 
-  private retainLoopSynth(key: string): void {
-    this.loopSynthRefs.set(key, (this.loopSynthRefs.get(key) ?? 0) + 1);
+  private retainLoopVoice(key: string): void {
+    this.loopVoiceRefs.set(key, (this.loopVoiceRefs.get(key) ?? 0) + 1);
   }
 
-  private releaseLoopSynthRef(
-    key: string,
-    releaseSynth: (synth: PolySynth<Synth>) => void,
-  ): void {
-    const next = (this.loopSynthRefs.get(key) ?? 1) - 1;
+  private releaseLoopVoiceRef(key: string): void {
+    const next = (this.loopVoiceRefs.get(key) ?? 1) - 1;
     if (next > 0) {
-      this.loopSynthRefs.set(key, next);
+      this.loopVoiceRefs.set(key, next);
       return;
     }
-    this.loopSynthRefs.delete(key);
-    const synth = this.loopSynths.get(key);
-    if (!synth) return;
-    this.loopSynths.delete(key);
-    releaseSynth(synth);
+    this.loopVoiceRefs.delete(key);
+    const voice = this.loopVoices.get(key);
+    if (!voice) return;
+    this.loopVoices.delete(key);
+    voice.dispose();
   }
 
-  private ensureLoopSynth(
+  private ensureLoopVoice(
     layerId: LayerId,
     loopId: number,
     mapping: SoundMapping,
-    buildSynth: (
+    createVoice: (
       layerId: LayerId,
       mapping: SoundMapping,
-    ) => PolySynth<Synth> | null,
-  ): PolySynth<Synth> | null {
+    ) => LoopVoice | null,
+  ): LoopVoice | null {
     const key = this.loopKey(layerId, loopId);
-    const existing = this.loopSynths.get(key);
+    const existing = this.loopVoices.get(key);
     if (existing) return existing;
-    const synth = buildSynth(layerId, mapping);
-    if (!synth) return null;
-    this.loopSynths.set(key, synth);
-    return synth;
+    const voice = createVoice(layerId, mapping);
+    if (!voice) return null;
+    this.loopVoices.set(key, voice);
+    return voice;
   }
 
   private disposeByKey(key: string): void {
@@ -135,7 +130,7 @@ class PartEngine {
       // (Helps robustness during rapid edits + play/pause/seek churn.)
       entry.part.stop(0);
       entry.part.dispose();
-      this.releaseLoopSynthRef(entry.loopSynthKey, entry.releaseSynth);
+      this.releaseLoopVoiceRef(entry.loopVoiceKey);
       this.parts.delete(key);
     }
   }
@@ -157,30 +152,27 @@ class PartEngine {
     definition: LoopDefinition,
     instance: LayerLoopInstance,
     mapping: SoundMapping,
-    buildSynth: (
+    createVoice: (
       layerId: LayerId,
       mapping: SoundMapping,
-    ) => PolySynth<Synth> | null,
-    releaseSynth: (synth: PolySynth<Synth>) => void,
+    ) => LoopVoice | null,
   ): void {
     const k = this.key(layerId, loopId, instanceId);
     this.disposeByKey(k);
-    const loopSynthKey = this.loopKey(layerId, loopId);
-    const instrument = this.ensureLoopSynth(
+    const loopVoiceKey = this.loopKey(layerId, loopId);
+    const instrument = this.ensureLoopVoice(
       layerId,
       loopId,
       mapping,
-      buildSynth,
+      createVoice,
     );
     if (!instrument) return;
     const part = buildPart(definition, instrument, instance);
     if (part) {
-      this.retainLoopSynth(loopSynthKey);
+      this.retainLoopVoice(loopVoiceKey);
       this.parts.set(k, {
         part,
-        synth: instrument,
-        loopSynthKey,
-        releaseSynth,
+        loopVoiceKey,
       });
       return;
     }
@@ -197,19 +189,18 @@ class PartEngine {
     layerId: LayerId,
     loopId: number,
     loop: LayerLoop,
-    buildSynth: (
+    createVoice: (
       layerId: LayerId,
       mapping: SoundMapping,
-    ) => PolySynth<Synth> | null,
-    releaseSynth: (synth: PolySynth<Synth>) => void,
+    ) => LoopVoice | null,
   ): void {
     this.disposeAllForLoop(layerId, loopId);
-    const loopSynthKey = this.loopKey(layerId, loopId);
-    const instrument = this.ensureLoopSynth(
+    const loopVoiceKey = this.loopKey(layerId, loopId);
+    const instrument = this.ensureLoopVoice(
       layerId,
       loopId,
       loop.mapping,
-      buildSynth,
+      createVoice,
     );
     if (!instrument) return;
     for (
@@ -220,17 +211,15 @@ class PartEngine {
       const instance = loop.loopInstances[instanceId];
       const part = buildPart(loop.definition, instrument, instance);
       if (part) {
-        this.retainLoopSynth(loopSynthKey);
+        this.retainLoopVoice(loopVoiceKey);
         this.parts.set(this.key(layerId, loopId, instanceId), {
           part,
-          synth: instrument,
-          loopSynthKey,
-          releaseSynth,
+          loopVoiceKey,
         });
       }
     }
-    if ((this.loopSynthRefs.get(loopSynthKey) ?? 0) === 0) {
-      this.releaseLoopSynthRef(loopSynthKey, releaseSynth);
+    if ((this.loopVoiceRefs.get(loopVoiceKey) ?? 0) === 0) {
+      this.releaseLoopVoiceRef(loopVoiceKey);
     }
   }
 
@@ -255,20 +244,18 @@ class PartEngine {
     layerId: LayerId,
     loopId: number,
     mapping: SoundMapping,
-    updateSynth: (synth: PolySynth<Synth>, mapping: SoundMapping) => void,
   ): void {
-    const synth = this.loopSynths.get(this.loopKey(layerId, loopId));
-    if (!synth) return;
-    updateSynth(synth, mapping);
+    const voice = this.loopVoices.get(this.loopKey(layerId, loopId));
+    if (!voice) return;
+    voice.updateMapping(mapping);
   }
 
   rebuildAll(
     layers: LayersState,
-    buildSynth: (
+    createVoice: (
       layerId: LayerId,
       mapping: SoundMapping,
-    ) => PolySynth<Synth> | null,
-    releaseSynth: (synth: PolySynth<Synth>) => void,
+    ) => LoopVoice | null,
   ): void {
     this.disposeAll();
     for (const id of LAYER_IDS) {
@@ -278,8 +265,7 @@ class PartEngine {
           id,
           loopId,
           layer.layerLoops[loopId],
-          buildSynth,
-          releaseSynth,
+          createVoice,
         );
       }
     }
@@ -293,9 +279,9 @@ class PartEngine {
       part.dispose();
     }
     this.parts.clear();
-    this.loopSynthRefs.clear();
-    for (const synth of this.loopSynths.values()) synth.dispose();
-    this.loopSynths.clear();
+    this.loopVoiceRefs.clear();
+    for (const voice of this.loopVoices.values()) voice.dispose();
+    this.loopVoices.clear();
   }
 }
 

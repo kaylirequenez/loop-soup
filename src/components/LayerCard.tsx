@@ -17,7 +17,11 @@ const DRAG_SELECTION_CLASS = "drag-selection-lock";
 
 export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const layer = useLayerStore((s) => s.layers[layerId]);
-  const { setLayerVolume, setLayerKnobValue, setLoopKnobValue } = useLayerStore(
+  const {
+    setLayerVolume,
+    setLayerKnobValue,
+    setLoopKnobValue,
+  } = useLayerStore(
     useShallow((s) => ({
       setLayerVolume: s.setLayerVolume,
       setLayerKnobValue: s.setLayerKnobValue,
