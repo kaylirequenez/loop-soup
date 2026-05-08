@@ -1,4 +1,8 @@
-import { Channel, start as toneStart, getContext as getToneContext } from "tone";
+import {
+  Channel,
+  start as toneStart,
+  getContext as getToneContext,
+} from "tone";
 import type { LayerId, LayerKnobsByEffect, SoundMapping } from "../types/layer";
 import { LAYER_IDS } from "../types/layer";
 import type { SoundId, KnobEffect } from "./types";

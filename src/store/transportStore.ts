@@ -15,6 +15,7 @@ export const TRANSPORT_STORE_KEY = "loop-soup-transport";
 export const useTransportStore = create<TransportStoreState>()((set) => ({
   isPlaying: false,
   extendOn: false,
+  isScrubbing: false,
   playheadBeat: 0,
   viewMeasureIndex: 0,
 
@@ -31,6 +32,12 @@ export const useTransportStore = create<TransportStoreState>()((set) => ({
     }),
   setExtendOn: (value) => set({ extendOn: value }),
   toggleExtendOn: () => set((s) => ({ extendOn: !s.extendOn })),
+  setScrubbing: (value) =>
+    set((s) => {
+      if (s.isScrubbing === value) return s;
+      transportDebug("setScrubbing", { from: s.isScrubbing, to: value });
+      return { isScrubbing: value };
+    }),
   setPlayheadBeat: (beat) =>
     set((s) => {
       transportDebug("setPlayheadBeat", { from: s.playheadBeat, to: beat });

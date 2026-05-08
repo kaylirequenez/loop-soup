@@ -118,6 +118,16 @@ export function useTransportClock() {
 
     const tick = () => {
       if (!useTransportStore.getState().isPlaying) return;
+      if (useTransportStore.getState().isScrubbing) {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
+      // Prevent a brief UI jump when isPlaying flips true but Transport.start()
+      // hasn't happened yet (useAudioScheduler starts it async after Parts build).
+      if (transport.state !== "started") {
+        rafId = requestAnimationFrame(tick);
+        return;
+      }
 
       const currentBeat = transportBeat();
       const { meter: currentMeter, totalMeasures: currentTotalMeasures } =

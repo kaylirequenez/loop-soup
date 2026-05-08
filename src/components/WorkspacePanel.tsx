@@ -1,4 +1,3 @@
-// TODO: split this into multiple files & rename to be better
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import LayerCard from "./LayerCard";

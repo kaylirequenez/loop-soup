@@ -41,12 +41,14 @@ export function usePlayheadDrag<T extends HTMLElement>({
   return usePointerDrag<T>({
     onStart: (el, event) => {
       if (stopPropagation) event.stopPropagation();
+      useTransportStore.getState().setScrubbing(true);
       seekTo(clampBeatFromClientX(el, event.clientX));
     },
     onMove: (el, event) => {
       seekTo(clampBeatFromClientX(el, event.clientX));
     },
     onEnd: () => {
+      useTransportStore.getState().setScrubbing(false);
       if (useTransportStore.getState().isPlaying) {
         onResume?.();
       }

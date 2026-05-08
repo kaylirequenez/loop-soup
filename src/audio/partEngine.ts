@@ -128,6 +128,9 @@ class PartEngine {
   private disposeByKey(key: string): void {
     const entry = this.parts.get(key);
     if (entry) {
+      // Stop first so scheduled callbacks detach cleanly before releasing synth refs.
+      // (Helps robustness during rapid edits + play/pause/seek churn.)
+      entry.part.stop(0);
       entry.part.dispose();
       this.releaseLoopSynthRef(entry.loopSynthKey, entry.releaseSynth);
       this.parts.delete(key);
@@ -188,7 +191,11 @@ class PartEngine {
     if (!instrument) return;
     for (let instanceId = 0; instanceId < loop.loopInstances.length; instanceId++) {
       const instance = loop.loopInstances[instanceId];
-      const part = buildPart(loop.definition, instrument, instance);
+      const part = buildPart(
+        loop.definition,
+        instrument,
+        instance,
+      );
       if (part) {
         this.retainLoopSynth(loopSynthKey);
         this.parts.set(this.key(layerId, loopId, instanceId), {

@@ -1,4 +1,4 @@
-import { getContext, getTransport, immediate } from "tone";
+import { getTransport } from "tone";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { audioEngine } from "../audio/audioEngine";
@@ -6,16 +6,13 @@ import { transportDebug } from "./transportDebug";
 
 export function transportBeat(): number {
   const transport = getTransport();
-  const context = getContext();
-  const rawContext = context.rawContext as { outputLatency?: number };
-  const outputLatency = rawContext.outputLatency ?? 0;
-  const audibleTime = Math.max(0, immediate() - outputLatency);
-  const beat = transport.getTicksAtTime(audibleTime) / transport.PPQ;
+  // Use Transport position directly for UI playhead stability. Latency-adjusted
+  // sampling can transiently read a pre-start/pre-seek time, which causes
+  // visible backward/zero jumps in the nowbar during resume and scrub release.
+  const beat = transport.ticks / transport.PPQ;
   transportDebug("transportBeat()", {
     ticks: transport.ticks,
     beat,
-    audibleTime,
-    outputLatency,
     state: transport.state,
   });
   return beat;
