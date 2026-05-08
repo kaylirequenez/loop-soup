@@ -189,7 +189,7 @@ export class LoopTimeline {
           let repeatOffsetBeats = 0;
           while (
             instance.startBeat + repeatOffsetBeats + spanBeats <=
-            instance.endBeat + 1e-6
+            instance.endBeat
           ) {
             repeatOffsets.push(repeatOffsetBeats);
             repeatOffsetBeats += step;

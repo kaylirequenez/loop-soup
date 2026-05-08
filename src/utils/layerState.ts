@@ -70,3 +70,12 @@ export function canShiftLoopNotesOctaveBy(
   if (notes.length === 0) return false;
   return notes.every((n) => canShiftLoopNoteOctaveBy(n, delta));
 }
+
+export function isRepeatOff(definition: LoopDefinition): boolean {
+  return (
+    (definition.repeatUnit === "beats" &&
+      definition.repeatEveryBeatsMemory == null) ||
+    (definition.repeatUnit === "measures" &&
+      definition.repeatEveryMeasuresMemory == null)
+  );
+}

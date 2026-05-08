@@ -2,7 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useMidiStore } from "../../store/midiStore";
 import { useTransportStore } from "../../store/transportStore";
 import { useCompositionStore } from "../../store/compositionStore";
-import { playheadMeasureIndex, snapPlayheadToView } from "../../utils/midiTransport";
+import { playheadMeasureIndex } from "../../utils/midiTransport";
 import type { AppView } from "../../types/app";
 
 interface MidiMeasureNavProps {
@@ -19,11 +19,19 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
   const { midiMeasuresVisible } = useMidiStore(
     useShallow((s) => ({ midiMeasuresVisible: s.midiMeasuresVisible })),
   );
-  const { viewMeasureIndex, setViewMeasureIndex, playheadBeat } = useTransportStore(
+  const {
+    viewMeasureIndex,
+    setViewMeasureIndex,
+    playheadBeat,
+    followNowbar,
+    setFollowNowbar,
+  } = useTransportStore(
     useShallow((s) => ({
       viewMeasureIndex: s.viewMeasureIndex,
       setViewMeasureIndex: s.setViewMeasureIndex,
       playheadBeat: s.playheadBeat,
+      followNowbar: s.followNowbar,
+      setFollowNowbar: s.setFollowNowbar,
     })),
   );
   const { meter, totalMeasures } = useCompositionStore(
@@ -36,11 +44,13 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
   const maxStart = Math.max(0, totalMeasures - midiMeasuresVisible);
   const currentStart = Math.min(maxStart, viewMeasureIndex);
   const playheadMeasureIdx = playheadMeasureIndex(playheadBeat, beatsPerMeasure);
-  const playheadNotInView =
-    playheadMeasureIdx < currentStart ||
-    playheadMeasureIdx >= currentStart + midiMeasuresVisible;
-
-  const handleSnapPlayhead = () => snapPlayheadToView(currentStart);
+  const handleToggleFollowNowbar = () => {
+    const nextFollow = !followNowbar;
+    setFollowNowbar(nextFollow);
+    if (!nextFollow) return;
+    const nextStart = Math.max(0, Math.min(maxStart, playheadMeasureIdx));
+    setViewMeasureIndex(nextStart);
+  };
 
   return (
     <div className="midi-measure-nav midi-measure-nav--view-bar">
@@ -65,16 +75,15 @@ export default function MidiMeasureNav({ currentView }: MidiMeasureNavProps) {
       >
         →
       </button>
-      {playheadNotInView && (
-        <button
-          type="button"
-          className="midi-measure-btn midi-measure-snap"
-          onClick={handleSnapPlayhead}
-          aria-label="move playhead to start of this measure"
-        >
-          ⟲ now bar
-        </button>
-      )}
+      <button
+        type="button"
+        className={`rep-btn ${followNowbar ? "rep-on" : ""}`}
+        onClick={handleToggleFollowNowbar}
+        aria-label={followNowbar ? "disable nowbar follow" : "enable nowbar follow"}
+        aria-pressed={followNowbar}
+      >
+        follow nowbar
+      </button>
     </div>
   );
 }

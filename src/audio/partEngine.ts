@@ -114,7 +114,10 @@ class PartEngine {
     layerId: LayerId,
     loopId: number,
     mapping: SoundMapping,
-    buildSynth: (layerId: LayerId, mapping: SoundMapping) => PolySynth<Synth> | null,
+    buildSynth: (
+      layerId: LayerId,
+      mapping: SoundMapping,
+    ) => PolySynth<Synth> | null,
   ): PolySynth<Synth> | null {
     const key = this.loopKey(layerId, loopId);
     const existing = this.loopSynths.get(key);
@@ -138,7 +141,11 @@ class PartEngine {
   }
 
   /** Dispose the Part for one loop instance id. Safe no-op if no Part exists. */
-  disposeForInstance(layerId: LayerId, loopId: number, instanceId: number): void {
+  disposeForInstance(
+    layerId: LayerId,
+    loopId: number,
+    instanceId: number,
+  ): void {
     this.disposeByKey(this.key(layerId, loopId, instanceId));
   }
 
@@ -150,13 +157,21 @@ class PartEngine {
     definition: LoopDefinition,
     instance: LayerLoopInstance,
     mapping: SoundMapping,
-    buildSynth: (layerId: LayerId, mapping: SoundMapping) => PolySynth<Synth> | null,
+    buildSynth: (
+      layerId: LayerId,
+      mapping: SoundMapping,
+    ) => PolySynth<Synth> | null,
     releaseSynth: (synth: PolySynth<Synth>) => void,
   ): void {
     const k = this.key(layerId, loopId, instanceId);
     this.disposeByKey(k);
     const loopSynthKey = this.loopKey(layerId, loopId);
-    const instrument = this.ensureLoopSynth(layerId, loopId, mapping, buildSynth);
+    const instrument = this.ensureLoopSynth(
+      layerId,
+      loopId,
+      mapping,
+      buildSynth,
+    );
     if (!instrument) return;
     const part = buildPart(definition, instrument, instance);
     if (part) {
@@ -182,20 +197,28 @@ class PartEngine {
     layerId: LayerId,
     loopId: number,
     loop: LayerLoop,
-    buildSynth: (layerId: LayerId, mapping: SoundMapping) => PolySynth<Synth> | null,
+    buildSynth: (
+      layerId: LayerId,
+      mapping: SoundMapping,
+    ) => PolySynth<Synth> | null,
     releaseSynth: (synth: PolySynth<Synth>) => void,
   ): void {
     this.disposeAllForLoop(layerId, loopId);
     const loopSynthKey = this.loopKey(layerId, loopId);
-    const instrument = this.ensureLoopSynth(layerId, loopId, loop.mapping, buildSynth);
+    const instrument = this.ensureLoopSynth(
+      layerId,
+      loopId,
+      loop.mapping,
+      buildSynth,
+    );
     if (!instrument) return;
-    for (let instanceId = 0; instanceId < loop.loopInstances.length; instanceId++) {
+    for (
+      let instanceId = 0;
+      instanceId < loop.loopInstances.length;
+      instanceId++
+    ) {
       const instance = loop.loopInstances[instanceId];
-      const part = buildPart(
-        loop.definition,
-        instrument,
-        instance,
-      );
+      const part = buildPart(loop.definition, instrument, instance);
       if (part) {
         this.retainLoopSynth(loopSynthKey);
         this.parts.set(this.key(layerId, loopId, instanceId), {
@@ -228,9 +251,23 @@ class PartEngine {
     }
   }
 
+  updateLoopSynthMapping(
+    layerId: LayerId,
+    loopId: number,
+    mapping: SoundMapping,
+    updateSynth: (synth: PolySynth<Synth>, mapping: SoundMapping) => void,
+  ): void {
+    const synth = this.loopSynths.get(this.loopKey(layerId, loopId));
+    if (!synth) return;
+    updateSynth(synth, mapping);
+  }
+
   rebuildAll(
     layers: LayersState,
-    buildSynth: (layerId: LayerId, mapping: SoundMapping) => PolySynth<Synth> | null,
+    buildSynth: (
+      layerId: LayerId,
+      mapping: SoundMapping,
+    ) => PolySynth<Synth> | null,
     releaseSynth: (synth: PolySynth<Synth>) => void,
   ): void {
     this.disposeAll();
@@ -250,6 +287,9 @@ class PartEngine {
 
   disposeAll(): void {
     for (const { part } of this.parts.values()) {
+      // Keep disposal order consistent with single-key teardown.
+      // Stop first so callbacks are detached before node disposal.
+      part.stop(0);
       part.dispose();
     }
     this.parts.clear();

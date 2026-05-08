@@ -41,6 +41,7 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   setSelectedLayerId: (id) =>
     set((state) => {
       if (state.isRecordingLoop) return state;
+      if (state.selectedLayerId === id) return state;
       return {
         selectedLayerId: id,
         selectedLoopId: null,

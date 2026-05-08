@@ -1,14 +1,16 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { audioEngine } from "../audio/audioEngine";
+import {
+  restartPlaybackFromBeat,
+  seekTransportBeatAndPanic,
+  snapPlayheadToMeasureStart,
+} from "../audio/transportController";
 import {
   compositionLoopBeatLength,
   maxMeasuresCompositionLimit,
 } from "../utils/compositionState";
 import { oneBasedRange } from "../utils";
 import {
-  seekTransportBeat,
-  snapPlayheadToView,
   transportBeat,
 } from "../utils/midiTransport";
 import {
@@ -59,14 +61,14 @@ export default function BottomControls() {
     addNewLoop,
     shiftLoopNotesOctave,
     setLoopRepeatUnit,
-    toggleLoopRepeatEvery,
+    setLoopRepeatEvery,
   } = useLayerStore(
     useShallow((s) => ({
       layers: s.layers,
       addNewLoop: s.addNewLoop,
       shiftLoopNotesOctave: s.shiftLoopNotesOctave,
       setLoopRepeatUnit: s.setLoopRepeatUnit,
-      toggleLoopRepeatEvery: s.toggleLoopRepeatEvery,
+      setLoopRepeatEvery: s.setLoopRepeatEvery,
     })),
   );
 
@@ -143,12 +145,15 @@ export default function BottomControls() {
   }, [isPlaying]);
 
   const handleRestartFromStart = () => {
-    seekTransportBeat(0);
-    audioEngine.cancelAll();
+    if (isPlaying) {
+      restartPlaybackFromBeat(0);
+    } else {
+      seekTransportBeatAndPanic(0);
+    }
     setViewMeasureIndex(0);
   };
 
-  const handleSnapPlayhead = () => snapPlayheadToView(viewMeasureIndex);
+  const handleSnapPlayhead = () => snapPlayheadToMeasureStart(viewMeasureIndex);
   const handleAddMeasure = () => {
     const newTotal = totalMeasures + 1;
     setTotalMeasures(newTotal);
@@ -158,8 +163,11 @@ export default function BottomControls() {
   const handleRemoveMeasure = () => {
     if (!canRemoveLastMeasure) return;
     const newTotal = totalMeasures - 1;
-    setMidiMeasuresVisible(Math.min(midiMeasuresVisible, newTotal));
+    const nextVisible = Math.min(midiMeasuresVisible, newTotal);
+    const nextMaxStart = Math.max(0, newTotal - nextVisible);
+    setMidiMeasuresVisible(nextVisible);
     setTotalMeasures(newTotal);
+    setViewMeasureIndex(Math.min(viewMeasureIndex, nextMaxStart));
   };
 
   return (
@@ -273,10 +281,10 @@ export default function BottomControls() {
                         disabled={disabled}
                         onClick={() => {
                           if (repeatControlsEnabled && activeLoop) {
-                            toggleLoopRepeatEvery(
+                            setLoopRepeatEvery(
                               selectedLayerId,
                               selectedLoopId,
-                              n,
+                              repeatEvery === n ? null : n,
                               compositionDims,
                             );
                           }

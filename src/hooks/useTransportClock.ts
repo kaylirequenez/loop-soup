@@ -1,52 +1,26 @@
 import { useEffect } from "react";
 import { getTransport } from "tone";
-import type { Meter } from "../types/composition";
 import { useMidiStore } from "../store/midiStore";
 import { useTransportStore } from "../store/transportStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerStore } from "../store/layerStore";
 import {
+  applyTransportConfig,
+  attachLoopHandler,
+  primePlaybackSession,
+} from "../audio/transportController";
+import {
   playheadMeasureIndex,
-  seekTransportBeat,
   transportBeat,
 } from "../utils/midiTransport";
-import { clamp } from "../utils";
 import { compositionLoopBeatLength } from "../utils/compositionState";
 import { audioEngine } from "../audio/audioEngine";
-import { transportDebug } from "../utils/transportDebug";
 
 export function useTransportClock() {
   const isPlaying = useTransportStore((s) => s.isPlaying);
 
   useEffect(() => {
-    const transport = getTransport();
-    const applyTransportConfig = (
-      bpm: number,
-      meter: Meter,
-      totalMeasures: number,
-    ) => {
-      const beatLength = compositionLoopBeatLength(
-        totalMeasures,
-        meter.beatsPerMeasure,
-      );
-      const loopStartPosition = "0:0:0";
-      const loopEndPosition = `${totalMeasures}:0:0`;
-      transport.bpm.value = clamp(bpm, 40, 240);
-      transport.timeSignature = [meter.beatsPerMeasure, meter.noteValue];
-      transport.loopStart = loopStartPosition;
-      transport.loopEnd = loopEndPosition;
-      transportDebug("applyTransportConfig", {
-        bpm: transport.bpm.value,
-        meter: meter.toString(),
-        totalMeasures,
-        beatLength,
-        loopStartPosition,
-        loopEndPosition,
-        loopEnd: transport.loopEnd,
-      });
-    };
-
     const initial = useCompositionStore.getState();
     let lastBpm = initial.bpm;
     let lastMeter = initial.meter;
@@ -80,24 +54,17 @@ export function useTransportClock() {
     if (!isPlaying) return undefined;
 
     const transport = getTransport();
-    transportDebug("clockEffect:start", {
-      state: transport.state,
-      ticks: transport.ticks,
-    });
 
-    // Seek to the user-visible playhead position before Transport starts.
-    const startBeat = useTransportStore.getState().playheadBeat;
-    seekTransportBeat(startBeat);
-    transport.loop = true;
-    transportDebug("clockEffect:seek+loop", {
-      startBeat,
-      ticks: transport.ticks,
-      loop: transport.loop,
-    });
+    // Resume from paused Transport cursor (scheduler truth), not latency-shifted
+    // UI playhead. Otherwise resume can jump backward by the display offset.
+    const startBeat =
+      transport.state === "paused"
+        ? transport.ticks / transport.PPQ
+        : useTransportStore.getState().playheadBeat;
+    primePlaybackSession(startBeat);
     // Transport.start() is called by useAudioScheduler after Parts are built.
 
     const onLoop = () => {
-      transportDebug("transport:loop", { ticks: transport.ticks });
       audioEngine.cancelAll();
       const es = useLayerEditorStore.getState();
       if (es.isRecordingLoop && es.selectedLoopId !== null) {
@@ -112,7 +79,7 @@ export function useTransportClock() {
         es.stopRecording();
       }
     };
-    transport.on("loop", onLoop);
+    const detachLoopListener = attachLoopHandler(onLoop);
 
     let rafId = 0;
 
@@ -130,30 +97,29 @@ export function useTransportClock() {
       }
 
       const currentBeat = transportBeat();
-      const { meter: currentMeter, totalMeasures: currentTotalMeasures } =
-        useCompositionStore.getState();
+      const { followNowbar } = useTransportStore.getState();
+      if (followNowbar) {
+        const { meter: currentMeter, totalMeasures: currentTotalMeasures } =
+          useCompositionStore.getState();
+        const { midiMeasuresVisible } = useMidiStore.getState();
+        const playheadIdx = playheadMeasureIndex(
+          currentBeat,
+          currentMeter.beatsPerMeasure,
+        );
+        const visible = Math.max(
+          1,
+          Math.min(midiMeasuresVisible, currentTotalMeasures),
+        );
+        const maxStart = Math.max(0, currentTotalMeasures - visible);
+        const viewMeasureIndex = Math.max(0, Math.min(maxStart, playheadIdx));
 
-      const { midiMeasuresVisible } = useMidiStore.getState();
-      const playheadIdx = playheadMeasureIndex(
-        currentBeat,
-        currentMeter.beatsPerMeasure,
-      );
-      const visible = Math.max(
-        1,
-        Math.min(midiMeasuresVisible, currentTotalMeasures),
-      );
-      const maxStart = Math.max(0, currentTotalMeasures - visible);
-      const viewMeasureIndex = Math.max(0, Math.min(maxStart, playheadIdx));
-
-      useTransportStore.setState({
-        playheadBeat: currentBeat,
-        viewMeasureIndex,
-      });
-      transportDebug("tick:updatePlayhead", {
-        currentBeat,
-        viewMeasureIndex,
-        ticks: transport.ticks,
-      });
+        useTransportStore.setState({
+          playheadBeat: currentBeat,
+          viewMeasureIndex,
+        });
+      } else {
+        useTransportStore.setState({ playheadBeat: currentBeat });
+      }
 
       rafId = requestAnimationFrame(tick);
     };
@@ -162,11 +128,7 @@ export function useTransportClock() {
 
     return () => {
       cancelAnimationFrame(rafId);
-      transport.off("loop", onLoop);
-      transportDebug("clockEffect:cleanupDetach", {
-        state: transport.state,
-        ticks: transport.ticks,
-      });
+      detachLoopListener();
     };
   }, [isPlaying]);
 }

@@ -14,12 +14,18 @@ import { DEFAULT_LAYERS } from "./utils/defaults";
 
 import { clamp } from "../utils";
 import { loopTimeline } from "../utils/loopTimeline";
-import { audioEngine } from "../audio/audioEngine";
-import { partEngine } from "../audio/partEngine";
 import {
-  isRepeatDisabledForUnit,
-  getRepeatEveryForUnit,
-} from "../utils/layerState";
+  syncAddInstance,
+  syncClearLoop,
+  syncDeleteInstance,
+  syncDeleteLoop,
+  syncExpandInstancesToComposition,
+  syncLoopDefinitionNotes,
+  syncLoopMapping,
+  syncRebuildInstance,
+  syncTimelineLoop,
+  syncTrimInstancesToComposition,
+} from "../audio/layerRuntimeSync";
 import {
   snapStartBeatNearNextBoundary,
   snapEndBeatNearBoundary,
@@ -38,9 +44,6 @@ function withReflowedLoopInstances(
   loop: LayerLoop,
   compositionDims: { beatsPerMeasure: number; compositionEndBeat: number },
 ): LayerLoopInstance[] {
-  if (loop.definition.spanBeats == null || loop.loopInstances.length === 0) {
-    return loop.loopInstances;
-  }
   const reflowed = reflowInstanceRepeatsForDefinition(
     loop.loopInstances,
     loop.definition,
@@ -63,15 +66,16 @@ function commitLoopRepeatDefinitionReflow(
 ): LayerStoreState["layers"] {
   const loop = layers[layerId]?.layerLoops[loopId];
   if (!loop) return layers;
+  const nextLoopInstances = withReflowedLoopInstances(
+    {
+      ...loop,
+      definition: nextDefinition,
+    },
+    compositionDims,
+  );
   return updateLoopInLayers(layers, layerId, loopId, {
     definition: nextDefinition,
-    loopInstances: withReflowedLoopInstances(
-      {
-        ...loop,
-        definition: nextDefinition,
-      },
-      compositionDims,
-    ),
+    loopInstances: nextLoopInstances,
   });
 }
 
@@ -275,6 +279,7 @@ export const useLayerStore = create<LayerStoreState>()(
           },
         }));
         syncAddInstance(
+          useLayerStore.getState().layers,
           layerId,
           loopId,
           placement.insertIndex,
@@ -317,7 +322,12 @@ export const useLayerStore = create<LayerStoreState>()(
             },
           },
         }));
-        syncDeleteInstance(layerId, loopId, instanceId);
+        syncDeleteInstance(
+          useLayerStore.getState().layers,
+          layerId,
+          loopId,
+          instanceId,
+        );
       },
 
       setLoopSoundId: (layerId, loopId, soundId) => {
@@ -335,7 +345,7 @@ export const useLayerStore = create<LayerStoreState>()(
         // This changes only the audio mapping (instrument choice) for this
         // loop; note geometry and placements are unchanged, so we only need to
         // rebuild the Parts/synths for this loop.
-        syncLoopMapping(layerId, loopId);
+        syncLoopMapping(useLayerStore.getState().layers, layerId, loopId);
       },
 
       setLoopKnobValue: (layerId, loopId, effect, value) => {
@@ -367,7 +377,7 @@ export const useLayerStore = create<LayerStoreState>()(
         // Effects only affect the instrument envelope/FX for this loop. We can
         // keep the same instance placements and just rebuild the Parts/synths
         // for this loop.
-        syncLoopMapping(layerId, loopId);
+        syncLoopMapping(useLayerStore.getState().layers, layerId, loopId);
       },
 
       shiftLoopNotesOctave: (layerId, loopId, delta) => {
@@ -392,7 +402,11 @@ export const useLayerStore = create<LayerStoreState>()(
         }));
         // Shifting octaves keeps note timing/placements the same; we only need
         // to update the per-Part note events (frequencies) for this loop.
-        syncLoopDefinitionNotes(layerId, loopId);
+        syncLoopDefinitionNotes(
+          useLayerStore.getState().layers,
+          layerId,
+          loopId,
+        );
       },
 
       /**
@@ -407,26 +421,6 @@ export const useLayerStore = create<LayerStoreState>()(
           const spanBeats = loop.definition.spanBeats;
           let nextMeasMem = loop.definition.repeatEveryMeasuresMemory;
           let nextBeatMem = loop.definition.repeatEveryBeatsMemory;
-          if (spanBeats != null) {
-            if (
-              isRepeatDisabledForUnit(
-                spanBeats,
-                beatsPerMeasure,
-                unit,
-                nextMeasMem,
-              )
-            )
-              nextMeasMem = null;
-            if (
-              isRepeatDisabledForUnit(
-                spanBeats,
-                beatsPerMeasure,
-                unit,
-                nextBeatMem,
-              )
-            )
-              nextBeatMem = null;
-          }
           const nextDefinition: LoopDefinition = {
             ...loop.definition,
             repeatUnit: unit,
@@ -443,43 +437,17 @@ export const useLayerStore = create<LayerStoreState>()(
             ),
           };
         });
-        syncTimelineLoop(layerId, loopId);
+        syncTimelineLoop(useLayerStore.getState().layers, layerId, loopId);
       },
 
       /**
-       * Spec: toggling repeat cadence changes event times and Part loop
+       * Spec: setting repeat cadence changes event times and Part loop
        * bounds, so we fully rebuild timeline+Parts for this loop.
        */
-      toggleLoopRepeatEvery: (layerId, loopId, value, compositionDims) => {
+      setLoopRepeatEvery: (layerId, loopId, value, compositionDims) => {
         set((state) => {
           const loop = state.layers[layerId].layerLoops[loopId];
           const unit = loop.definition.repeatUnit;
-          const activeRepeatEvery = getRepeatEveryForUnit(
-            unit,
-            loop.definition,
-          );
-          if (activeRepeatEvery === value) {
-            const nextDefinition: LoopDefinition = {
-              ...loop.definition,
-              repeatEveryMeasuresMemory:
-                unit === "measures"
-                  ? null
-                  : loop.definition.repeatEveryMeasuresMemory,
-              repeatEveryBeatsMemory:
-                unit === "beats"
-                  ? null
-                  : loop.definition.repeatEveryBeatsMemory,
-            };
-            return {
-              layers: commitLoopRepeatDefinitionReflow(
-                state.layers,
-                layerId,
-                loopId,
-                nextDefinition,
-                compositionDims,
-              ),
-            };
-          }
           const nextDefinition: LoopDefinition = {
             ...loop.definition,
             repeatEveryMeasuresMemory:
@@ -499,7 +467,7 @@ export const useLayerStore = create<LayerStoreState>()(
             ),
           };
         });
-        syncTimelineLoop(layerId, loopId);
+        syncTimelineLoop(useLayerStore.getState().layers, layerId, loopId);
       },
 
       /**
@@ -518,12 +486,12 @@ export const useLayerStore = create<LayerStoreState>()(
         const instance = loop?.loopInstances[instanceId];
         if (!loop || !instance || loop.definition.spanBeats == null) return;
         const maxEndBeat =
-          instance.endBeat ?? compositionDims.compositionEndBeat;
+          instance.repeatCount == null ? null : instance.endBeat;
         const fitted = fitRepeatCountToWindow(
           { startBeat, repeatCount: instance.repeatCount },
           maxEndBeat,
           loop.definition,
-          compositionDims.beatsPerMeasure,
+          compositionDims,
         );
         if (!fitted) return;
         const newInstance: LayerLoopInstance = {
@@ -544,7 +512,13 @@ export const useLayerStore = create<LayerStoreState>()(
             },
           ),
         }));
-        syncRebuildInstance(layerId, loopId, instanceId, newInstance);
+        syncRebuildInstance(
+          useLayerStore.getState().layers,
+          layerId,
+          loopId,
+          instanceId,
+          newInstance,
+        );
       },
 
       /**
@@ -566,7 +540,7 @@ export const useLayerStore = create<LayerStoreState>()(
           { startBeat: instance.startBeat, repeatCount: instance.repeatCount },
           endBeat,
           loop.definition,
-          compositionDims.beatsPerMeasure,
+          compositionDims,
         );
         if (!fitted) return;
         const newInstance: LayerLoopInstance = {
@@ -586,7 +560,13 @@ export const useLayerStore = create<LayerStoreState>()(
             },
           ),
         }));
-        syncRebuildInstance(layerId, loopId, instanceId, newInstance);
+        syncRebuildInstance(
+          useLayerStore.getState().layers,
+          layerId,
+          loopId,
+          instanceId,
+          newInstance,
+        );
       },
 
       /**
@@ -623,7 +603,13 @@ export const useLayerStore = create<LayerStoreState>()(
             },
           ),
         }));
-        syncRebuildInstance(layerId, loopId, instanceId, newInstance);
+        syncRebuildInstance(
+          useLayerStore.getState().layers,
+          layerId,
+          loopId,
+          instanceId,
+          newInstance,
+        );
       },
 
       addNewLoop: (layerId) => {
@@ -688,7 +674,7 @@ export const useLayerStore = create<LayerStoreState>()(
             },
           },
         }));
-        syncClearLoop(layerId, loopId);
+        syncClearLoop(useLayerStore.getState().layers, layerId, loopId);
       },
 
       /**
@@ -927,6 +913,7 @@ export const useLayerStore = create<LayerStoreState>()(
         const updatedLoop =
           useLayerStore.getState().layers[layerId].layerLoops[loopId];
         syncAddInstance(
+          useLayerStore.getState().layers,
           layerId,
           loopId,
           0,
@@ -989,21 +976,51 @@ export const useLayerStore = create<LayerStoreState>()(
               return { ...loop, loopInstances: [] };
             }
             const keptCount = lastPlayable.lastPlayableIndex + 1;
-            const truncated = loop.loopInstances.slice(0, keptCount).map((inst, idx) => {
-              if (idx !== keptCount - 1) return inst;
-              return {
-                ...inst,
-                repeatCount: lastPlayable.repeatCountAtLastPlayable,
-                endBeat: lastPlayable.endBeatAtLastPlayable,
-              };
-            });
-            if (truncated.length === loop.loopInstances.length) return loop;
+            const truncated = loop.loopInstances
+              .slice(0, keptCount)
+              .map((inst, idx) => {
+                if (idx !== keptCount - 1) return inst;
+                return {
+                  ...inst,
+                  repeatCount: lastPlayable.repeatCountAtLastPlayable,
+                  endBeat: lastPlayable.endBeatAtLastPlayable,
+                };
+              });
+            const changedKeptInstances = truncated
+              .map((nextInstance, instanceId) => {
+                const prevInstance = loop.loopInstances[instanceId];
+                if (
+                  prevInstance.repeatCount === nextInstance.repeatCount &&
+                  prevInstance.endBeat === nextInstance.endBeat
+                ) {
+                  return null;
+                }
+                return {
+                  instanceId,
+                  previous: {
+                    repeatCount: prevInstance.repeatCount,
+                    endBeat: prevInstance.endBeat,
+                  },
+                  next: {
+                    repeatCount: nextInstance.repeatCount,
+                    endBeat: nextInstance.endBeat,
+                  },
+                };
+              })
+              .filter((entry) => entry != null);
+            const removedAny = truncated.length < loop.loopInstances.length;
+            const changedAnyKept = changedKeptInstances.length > 0;
+            if (!removedAny && !changedAnyKept) return loop;
 
             changedLayer = true;
             anyChanged = true;
             affectedTimelineLoops.add(`${layerId}:${loopId}`);
 
-            for (let instanceId = truncated.length; instanceId < loop.loopInstances.length; instanceId++) {
+            for (
+              let instanceId = truncated.length;
+              instanceId < loop.loopInstances.length;
+              instanceId++
+            ) {
               removedInstanceIds.push({
                 layerId,
                 loopId,
@@ -1026,36 +1043,13 @@ export const useLayerStore = create<LayerStoreState>()(
         if (!anyChanged) return;
         set(() => ({ layers: nextLayers }));
         const updatedLayers = useLayerStore.getState().layers;
-
-        for (const key of affectedTimelineLoops) {
-          const [layerId, loopIdStr] = key.split(":");
-          loopTimeline.rebuildLoop(
-            layerId as LayerId,
-            Number(loopIdStr),
-            updatedLayers,
-          );
-        }
-
-        for (const { layerId, loopId } of clearedLoops)
-          partEngine.disposeAllForLoop(layerId, loopId);
-        for (const { layerId, loopId, instanceId } of removedInstanceIds) {
-          partEngine.disposeForInstance(layerId, loopId, instanceId);
-        }
-        for (const { layerId, loopId, instanceId, instance } of rebuiltLast) {
-          const mapping = updatedLayers[layerId].layerLoops[loopId].mapping;
-          partEngine.disposeForInstance(layerId, loopId, instanceId);
-          partEngine.buildForInstance(
-            layerId,
-            loopId,
-            instanceId,
-            updatedLayers[layerId].layerLoops[loopId].definition,
-            instance,
-            mapping,
-            (id, loopMapping) =>
-              audioEngine.buildPlaybackSynth(id, loopMapping),
-            (synth) => audioEngine.releasePlaybackSynth(synth),
-          );
-        }
+        syncTrimInstancesToComposition({
+          layers: updatedLayers,
+          affectedTimelineLoops,
+          clearedLoops,
+          removedInstanceIds,
+          rebuiltLast,
+        });
       },
 
       expandInstancesToComposition: (compositionDims) => {
@@ -1105,8 +1099,7 @@ export const useLayerStore = create<LayerStoreState>()(
 
             // Only open-ended instances should be expanded.
             if (last.repeatCount != null) return loop;
-            if (last.endBeat === expandedEndBeat)
-              return loop;
+            if (last.endBeat === expandedEndBeat) return loop;
 
             changedLayer = true;
             anyChanged = true;
@@ -1133,31 +1126,11 @@ export const useLayerStore = create<LayerStoreState>()(
         if (!anyChanged) return;
         set(() => ({ layers: nextLayers }));
         const updatedLayers = useLayerStore.getState().layers;
-
-        for (const key of affectedTimelineLoops) {
-          const [layerId, loopIdStr] = key.split(":");
-          loopTimeline.rebuildLoop(
-            layerId as LayerId,
-            Number(loopIdStr),
-            updatedLayers,
-          );
-        }
-
-        for (const { layerId, loopId, instanceId, instance } of rebuiltLast) {
-          const mapping = updatedLayers[layerId].layerLoops[loopId].mapping;
-          partEngine.disposeForInstance(layerId, loopId, instanceId);
-          partEngine.buildForInstance(
-            layerId,
-            loopId,
-            instanceId,
-            updatedLayers[layerId].layerLoops[loopId].definition,
-            instance,
-            mapping,
-            (id, loopMapping) =>
-              audioEngine.buildPlaybackSynth(id, loopMapping),
-            (synth) => audioEngine.releasePlaybackSynth(synth),
-          );
-        }
+        syncExpandInstancesToComposition({
+          layers: updatedLayers,
+          affectedTimelineLoops,
+          rebuiltLast,
+        });
       },
     }),
     {
@@ -1169,104 +1142,3 @@ export const useLayerStore = create<LayerStoreState>()(
     },
   ),
 );
-
-/** Full Part rebuild for a loop — use when note content, repeat stride, or all instance bounds changed. */
-function syncTimelineLoop(layerId: LayerId, loopId: LayerLoopId): void {
-  const layers = useLayerStore.getState().layers;
-  loopTimeline.rebuildLoop(layerId, loopId, layers);
-  partEngine.rebuildAllForLoop(
-    layerId,
-    loopId,
-    layers[layerId].layerLoops[loopId],
-    (id, mapping) => audioEngine.buildPlaybackSynth(id, mapping),
-    (synth) => audioEngine.releasePlaybackSynth(synth),
-  );
-}
-
-/** Rebuild only the Parts/synths for a loop whose mapping (sound/effects) changed. */
-function syncLoopMapping(layerId: LayerId, loopId: LayerLoopId): void {
-  const layers = useLayerStore.getState().layers;
-  const loop = layers[layerId]?.layerLoops[loopId];
-  if (!loop) return;
-  partEngine.rebuildAllForLoop(
-    layerId,
-    loopId,
-    loop,
-    (id, mapping) => audioEngine.buildPlaybackSynth(id, mapping),
-    (synth) => audioEngine.releasePlaybackSynth(synth),
-  );
-}
-
-/** Build one new Part for a freshly added instance (no prior Part to dispose). */
-function syncAddInstance(
-  layerId: LayerId,
-  loopId: LayerLoopId,
-  instanceId: number,
-  definition: LoopDefinition,
-  instance: LayerLoopInstance,
-): void {
-  const layers = useLayerStore.getState().layers;
-  loopTimeline.rebuildLoop(layerId, loopId, layers);
-  partEngine.buildForInstance(
-    layerId,
-    loopId,
-    instanceId,
-    definition,
-    instance,
-    layers[layerId].layerLoops[loopId].mapping,
-    (id, mapping) => audioEngine.buildPlaybackSynth(id, mapping),
-    (synth) => audioEngine.releasePlaybackSynth(synth),
-  );
-}
-
-/** Rebuild the Part for one updated instance id. */
-function syncRebuildInstance(
-  layerId: LayerId,
-  loopId: LayerLoopId,
-  instanceId: number,
-  instance: LayerLoopInstance,
-): void {
-  const layers = useLayerStore.getState().layers;
-  loopTimeline.rebuildLoop(layerId, loopId, layers);
-  partEngine.disposeForInstance(layerId, loopId, instanceId);
-  partEngine.buildForInstance(
-    layerId,
-    loopId,
-    instanceId,
-    layers[layerId].layerLoops[loopId].definition,
-    instance,
-    layers[layerId].layerLoops[loopId].mapping,
-    (id, mapping) => audioEngine.buildPlaybackSynth(id, mapping),
-    (synth) => audioEngine.releasePlaybackSynth(synth),
-  );
-}
-
-/** Dispose the Part for one deleted instance. */
-function syncDeleteInstance(
-  layerId: LayerId,
-  loopId: LayerLoopId,
-  instanceId: number,
-): void {
-  loopTimeline.rebuildLoop(layerId, loopId, useLayerStore.getState().layers);
-  partEngine.disposeForInstance(layerId, loopId, instanceId);
-}
-
-/** Update note content for an existing loop without changing placements. */
-function syncLoopDefinitionNotes(layerId: LayerId, loopId: LayerLoopId): void {
-  const layers = useLayerStore.getState().layers;
-  const definition = layers[layerId]?.layerLoops[loopId]?.definition;
-  if (!definition) return;
-  partEngine.updateLoopNotesInPlace(layerId, loopId, definition);
-}
-
-/** Dispose all Parts for a loop whose instances were cleared (loop still exists in state). */
-function syncClearLoop(layerId: LayerId, loopId: LayerLoopId): void {
-  loopTimeline.rebuildLoop(layerId, loopId, useLayerStore.getState().layers);
-  partEngine.disposeAllForLoop(layerId, loopId);
-}
-
-/** Dispose all Parts for a loop that was deleted from state (loopId no longer valid). */
-function syncDeleteLoop(layerId: LayerId, loopId: LayerLoopId): void {
-  loopTimeline.invalidateLoop(layerId, loopId);
-  partEngine.disposeAllForLoop(layerId, loopId);
-}

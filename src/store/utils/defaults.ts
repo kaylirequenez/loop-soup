@@ -1,9 +1,5 @@
-import type { LayersState } from "../../types/layer";
-import {
-  SOUND_CATALOG,
-  KNOB_LABELS,
-  DEFAULT_SOUND_FOR_LAYER,
-} from "../../audio/sounds";
+import type { LayerId, LayersState } from "../../types/layer";
+import { SOUND_CATALOG, KNOB_LABELS } from "../../audio/sounds";
 import type { SoundId } from "../../audio/types";
 import type {
   MidiLoopRollPlacementMap,
@@ -25,13 +21,28 @@ export const DEFAULT_MIDI_LAYER_PLACEMENT: MidiLayerPlacement = {
   E: "both",
 };
 
-function defaultKnobs(soundId: NonNullable<SoundId>) {
-  const defaults = SOUND_CATALOG[soundId].defaultKnobs;
+const DEFAULT_LAYER_KNOB_VALUES = {
+  attack: 0,
+  decay: 0.3,
+  sustain: 0.5,
+  release: 0.4,
+} as const;
+
+function defaultKnobs() {
   return {
-    attack: { value: defaults.attack, label: KNOB_LABELS.attack },
-    decay: { value: defaults.decay, label: KNOB_LABELS.decay },
-    sustain: { value: defaults.sustain, label: KNOB_LABELS.sustain },
-    release: { value: defaults.release, label: KNOB_LABELS.release },
+    attack: {
+      value: DEFAULT_LAYER_KNOB_VALUES.attack,
+      label: KNOB_LABELS.attack,
+    },
+    decay: { value: DEFAULT_LAYER_KNOB_VALUES.decay, label: KNOB_LABELS.decay },
+    sustain: {
+      value: DEFAULT_LAYER_KNOB_VALUES.sustain,
+      label: KNOB_LABELS.sustain,
+    },
+    release: {
+      value: DEFAULT_LAYER_KNOB_VALUES.release,
+      label: KNOB_LABELS.release,
+    },
   };
 }
 
@@ -47,16 +58,22 @@ function defaultInstance(startBeat: number, spanBeats: number) {
   return { startBeat, repeatCount: null, endBeat: startBeat + spanBeats };
 }
 
-const SAW = DEFAULT_SOUND_FOR_LAYER.A; // "sawtooth"
-const SINE = DEFAULT_SOUND_FOR_LAYER.B; // "sine"
-const TRI = DEFAULT_SOUND_FOR_LAYER.D; // "triangle"
-const SQR = DEFAULT_SOUND_FOR_LAYER.E; // "square"
+const DEFAULT_SOUNDS: Record<LayerId, SoundId> = {
+  A: "sawtooth",
+  B: "sine",
+  C: "sawtooth",
+  D: "triangle",
+  E: "square",
+};
 
 export const DEFAULT_LAYERS = {
   A: {
     role: "hook",
     volume: 0.7,
-    defaultMapping: { soundId: SAW, knobsByEffect: defaultKnobs(SAW) },
+    defaultMapping: {
+      soundId: DEFAULT_SOUNDS.A,
+      knobsByEffect: defaultKnobs(),
+    },
     knobOrder: [...DEFAULT_KNOB_ORDER],
     layerLoops: [
       {
@@ -73,7 +90,10 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: { soundId: SAW, knobsByEffect: defaultKnobs(SAW) },
+        mapping: {
+          soundId: DEFAULT_SOUNDS.A,
+          knobsByEffect: defaultKnobs(),
+        },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: [defaultInstance(0, 1)],
       },
@@ -82,7 +102,10 @@ export const DEFAULT_LAYERS = {
   B: {
     role: "bass",
     volume: 0.7,
-    defaultMapping: { soundId: SINE, knobsByEffect: defaultKnobs(SINE) },
+    defaultMapping: {
+      soundId: DEFAULT_SOUNDS.B,
+      knobsByEffect: defaultKnobs(),
+    },
     knobOrder: [...DEFAULT_KNOB_ORDER],
     layerLoops: [
       {
@@ -106,7 +129,10 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: { soundId: SINE, knobsByEffect: defaultKnobs(SINE) },
+        mapping: {
+          soundId: DEFAULT_SOUNDS.B,
+          knobsByEffect: defaultKnobs(),
+        },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: [defaultInstance(0, 2)],
       },
@@ -115,7 +141,10 @@ export const DEFAULT_LAYERS = {
   C: {
     role: "melody",
     volume: 0.7,
-    defaultMapping: { soundId: SAW, knobsByEffect: defaultKnobs(SAW) },
+    defaultMapping: {
+      soundId: DEFAULT_SOUNDS.C,
+      knobsByEffect: defaultKnobs(),
+    },
     knobOrder: [...DEFAULT_KNOB_ORDER],
     layerLoops: [
       {
@@ -146,7 +175,10 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: { soundId: SAW, knobsByEffect: defaultKnobs(SAW) },
+        mapping: {
+          soundId: DEFAULT_SOUNDS.C,
+          knobsByEffect: defaultKnobs(),
+        },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: [defaultInstance(0, 3)],
       },
@@ -155,7 +187,10 @@ export const DEFAULT_LAYERS = {
   D: {
     role: "harmony",
     volume: 0.7,
-    defaultMapping: { soundId: TRI, knobsByEffect: defaultKnobs(TRI) },
+    defaultMapping: {
+      soundId: DEFAULT_SOUNDS.D,
+      knobsByEffect: defaultKnobs(),
+    },
     knobOrder: [...DEFAULT_KNOB_ORDER],
     layerLoops: [
       {
@@ -193,7 +228,10 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: { soundId: TRI, knobsByEffect: defaultKnobs(TRI) },
+        mapping: {
+          soundId: DEFAULT_SOUNDS.D,
+          knobsByEffect: defaultKnobs(),
+        },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: [defaultInstance(0, 4)],
       },
@@ -202,7 +240,10 @@ export const DEFAULT_LAYERS = {
   E: {
     role: "drums",
     volume: 0.7,
-    defaultMapping: { soundId: SQR, knobsByEffect: defaultKnobs(SQR) },
+    defaultMapping: {
+      soundId: DEFAULT_SOUNDS.E,
+      knobsByEffect: defaultKnobs(),
+    },
     knobOrder: [...DEFAULT_KNOB_ORDER],
     layerLoops: [
       {
@@ -226,7 +267,10 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: { soundId: SQR, knobsByEffect: defaultKnobs(SQR) },
+        mapping: {
+          soundId: DEFAULT_SOUNDS.E,
+          knobsByEffect: defaultKnobs(),
+        },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: [defaultInstance(0, 2)],
       },
@@ -251,7 +295,10 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: { soundId: SQR, knobsByEffect: defaultKnobs(SQR) },
+        mapping: {
+          soundId: DEFAULT_SOUNDS.E,
+          knobsByEffect: defaultKnobs(),
+        },
         knobOrder: [...DEFAULT_KNOB_ORDER],
         loopInstances: [defaultInstance(4, 2)],
       },

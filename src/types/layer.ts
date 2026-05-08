@@ -134,10 +134,10 @@ export interface LayerStoreState {
     unit: RepeatUnit,
     compositionDims: LoopInstanceCompositionDims,
   ) => void;
-  toggleLoopRepeatEvery: (
+  setLoopRepeatEvery: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    value: number,
+    value: number | null,
     compositionDims: LoopInstanceCompositionDims,
   ) => void;
   setLoopInstanceStartBeat: (

@@ -8,9 +8,7 @@ import {
   LOOP_NOTE_MIDI_MIN,
   softpotChromoRows,
 } from "../utils/pitch";
-import type { LayerId, LayerLoopId } from "../types/layer";
-import type { SoundId } from "../audio/types";
-import { defaultSoundForLayer } from "../audio/sounds";
+import type { LayerId, LayerLoopId, SoundMapping } from "../types/layer";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerStore } from "../store/layerStore";
 import { useTransportStore } from "../store/transportStore";
@@ -86,8 +84,17 @@ export default function SoftPot() {
   } | null>(null);
   /** Last preview row index sounded during a drag, used to detect row changes. */
   const lastPreviewRowRef = useRef<number | null>(null);
-  /** Sound captured at gesture start — stays stable for the duration of the drag. */
-  const capturedSoundIdRef = useRef<NonNullable<SoundId> | null>(null);
+
+  function currentPreviewMapping(layerId: LayerId): SoundMapping {
+    const layers = useLayerStore.getState().layers;
+    const editor = useLayerEditorStore.getState();
+    const layer = layers[layerId];
+    const selectedLoopId = editor.selectedLayerId === layerId ? editor.selectedLoopId : null;
+    if (selectedLoopId != null) {
+      return layer.layerLoops[selectedLoopId].mapping;
+    }
+    return layer.defaultMapping;
+  }
 
   const captureNoteStart = (midi: number) => {
     if (isRecordingLoop && useTransportStore.getState().isPlaying) {
@@ -148,19 +155,16 @@ export default function SoftPot() {
   }, [allowedMaxPosition, allowedMinPosition, softpotPosition]);
 
   const beginGesture = (freqHz: number) => {
-    const rawSoundId = useLayerStore.getState().layers[selectedLayer].defaultMapping.soundId;
-    const soundId = rawSoundId ?? defaultSoundForLayer(selectedLayer);
-    capturedSoundIdRef.current = soundId;
+    const mapping = currentPreviewMapping(selectedLayer);
     setGestureActive(true);
     document.body.classList.add(DRAG_SELECTION_CLASS);
-    audioEngine.beginPreviewNote(selectedLayer, soundId, freqHz);
+    audioEngine.beginPreviewNote(selectedLayer, mapping, freqHz);
   };
 
   const endGesture = () => {
     setGestureActive(false);
     document.body.classList.remove(DRAG_SELECTION_CLASS);
     audioEngine.endPreviewNote(selectedLayer);
-    capturedSoundIdRef.current = null;
     lastPreviewRowRef.current = null;
     commitNote();
   };
@@ -211,14 +215,11 @@ export default function SoftPot() {
       const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
       if (clampedRow !== lastPreviewRowRef.current) {
         lastPreviewRowRef.current = clampedRow;
-        const soundId = capturedSoundIdRef.current;
-        if (soundId !== null) {
-          audioEngine.updatePreviewNote(
-            selectedLayer,
-            soundId,
-            midiToFrequency(chromoRows[clampedRow].midi),
-          );
-        }
+        audioEngine.updatePreviewNote(
+          selectedLayer,
+          currentPreviewMapping(selectedLayer),
+          midiToFrequency(chromoRows[clampedRow].midi),
+        );
       }
     },
     onEnd: () => endGesture(),

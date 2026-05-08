@@ -16,6 +16,8 @@ export interface TransportRuntimeState {
   playheadBeat: number;
   /** 0-based index of the leftmost visible measure in the MIDI roll. */
   viewMeasureIndex: number;
+  /** When true, keep MIDI view anchored to playhead while playing. */
+  followNowbar: boolean;
 }
 
 export type TransportStoreState = TransportRuntimeState & {
@@ -26,4 +28,5 @@ export type TransportStoreState = TransportRuntimeState & {
   setScrubbing: (value: boolean) => void;
   setPlayheadBeat: (beat: number) => void;
   setViewMeasureIndex: (index: number) => void;
+  setFollowNowbar: (value: boolean) => void;
 };

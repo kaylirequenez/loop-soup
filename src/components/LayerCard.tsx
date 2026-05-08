@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { LAYER_COLORS } from "../ui/layerTheme";
-import { defaultSoundForLayer, SOUND_CATALOG } from "../audio/sounds";
+import { SOUND_CATALOG } from "../audio/sounds";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerPlaybackStore } from "../store/layerPlaybackStore";
@@ -44,8 +44,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const activeLoop = activeLoopId != null ? layer.layerLoops[activeLoopId] : null;
   const activeMapping = activeLoop ? activeLoop.mapping : layer.defaultMapping;
   const activeKnobOrder = activeLoop ? activeLoop.knobOrder : layer.knobOrder;
-  const resolvedSoundId = activeMapping.soundId ?? defaultSoundForLayer(layerId);
-  const sound = SOUND_CATALOG[resolvedSoundId].displayName;
+  const sound = SOUND_CATALOG[activeMapping.soundId].displayName;
   const loopCount = Object.keys(layer.layerLoops).length;
   const faderPercent = Math.round(layer.volume * 100);
 

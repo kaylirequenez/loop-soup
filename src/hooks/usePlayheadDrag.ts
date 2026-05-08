@@ -1,7 +1,10 @@
 import { usePointerDrag } from "./usePointerDrag";
 import { useTransportStore } from "../store/transportStore";
-import { audioEngine } from "../audio/audioEngine";
-import { seekTransportBeat } from "../utils/midiTransport";
+import {
+  pauseForScrub,
+  resumeAfterScrub,
+  seekTransportBeatAndPanic,
+} from "../audio/transportController";
 
 interface BeatWindow {
   startBeat: number;
@@ -23,6 +26,8 @@ export function usePlayheadDrag<T extends HTMLElement>({
   onResume,
   stopPropagation = true,
 }: UsePlayheadDragConfig<T>) {
+  let shouldResumeTransport = false;
+
   const clampBeatFromClientX = (el: T, clientX: number) => {
     const { startBeat, endBeat } = getBeatWindow();
     const span = Math.max(0, endBeat - startBeat);
@@ -33,8 +38,7 @@ export function usePlayheadDrag<T extends HTMLElement>({
   };
 
   const seekTo = (beat: number) => {
-    seekTransportBeat(beat);
-    audioEngine.cancelAll();
+    seekTransportBeatAndPanic(beat);
     onSeek(beat);
   };
 
@@ -42,14 +46,18 @@ export function usePlayheadDrag<T extends HTMLElement>({
     onStart: (el, event) => {
       if (stopPropagation) event.stopPropagation();
       useTransportStore.getState().setScrubbing(true);
+      shouldResumeTransport = pauseForScrub();
       seekTo(clampBeatFromClientX(el, event.clientX));
     },
     onMove: (el, event) => {
       seekTo(clampBeatFromClientX(el, event.clientX));
     },
     onEnd: () => {
+      const beat = useTransportStore.getState().playheadBeat;
       useTransportStore.getState().setScrubbing(false);
-      if (useTransportStore.getState().isPlaying) {
+      if (shouldResumeTransport) {
+        resumeAfterScrub(beat);
+        shouldResumeTransport = false;
         onResume?.();
       }
       onDragEnd?.();

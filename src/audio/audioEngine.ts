@@ -1,21 +1,25 @@
 import {
   Channel,
+  now,
   start as toneStart,
   getContext as getToneContext,
 } from "tone";
-import type { LayerId, LayerKnobsByEffect, SoundMapping } from "../types/layer";
+import type { LayerId, SoundMapping } from "../types/layer";
 import { LAYER_IDS } from "../types/layer";
-import type { SoundId, KnobEffect } from "./types";
-import { buildPreviewInstruments, buildLayerSynth } from "./instruments";
-import { knobToEnvParam } from "./sounds";
+import type { SoundId } from "./types";
+import {
+  applyMappingToSynth,
+  buildPreviewInstruments,
+  buildLayerSynth,
+} from "./instruments";
 import type { PolySynth, Synth } from "tone";
+import { applyContextTimingConfig } from "../utils/timingTestHarness";
 
 class AudioEngine {
   private channels = new Map<LayerId, Channel>();
   private activePlaybackSynths = new Set<PolySynth<Synth>>();
   private previewSynths = new Map<LayerId, PolySynth<Synth>>();
   private previewFreqs = new Map<LayerId, number>();
-  private previewSoundIds = new Map<LayerId, NonNullable<SoundId>>();
   /** True once AudioContext has been unlocked — never reset, even after stop(). */
   private toneStarted = false;
 
@@ -23,9 +27,10 @@ class AudioEngine {
     return this.channels.size > 0;
   }
 
-  async init(layerSounds: Map<LayerId, NonNullable<SoundId>>): Promise<void> {
+  async init(layerSounds: Map<LayerId, SoundId>): Promise<void> {
     if (!this.toneStarted) {
       await toneStart();
+      applyContextTimingConfig(getToneContext());
       this.toneStarted = true;
     }
     if (this.ready) return;
@@ -38,31 +43,23 @@ class AudioEngine {
     }
   }
 
-  private applyEnvelope(
-    instrument: PolySynth<Synth>,
-    knobsByEffect: LayerKnobsByEffect,
-  ): void {
-    const get = (e: KnobEffect, def: number) => knobsByEffect[e]?.value ?? def;
-    instrument.set({
-      envelope: {
-        attack:  knobToEnvParam("attack",  get("attack",  0.1)),
-        decay:   knobToEnvParam("decay",   get("decay",   0.3)),
-        sustain: knobToEnvParam("sustain", get("sustain", 0.5)),
-        release: knobToEnvParam("release", get("release", 0.4)),
-      },
-    });
-  }
-
-  buildPlaybackSynth(layerId: LayerId, mapping: SoundMapping): PolySynth<Synth> | null {
+  buildPlaybackSynth(
+    layerId: LayerId,
+    mapping: SoundMapping,
+  ): PolySynth<Synth> | null {
     if (!this.ready) return null;
     const channel = this.channels.get(layerId);
     if (!channel) return null;
-    const soundId = mapping.soundId ?? "sawtooth";
+    const soundId = mapping.soundId;
     const newSynth = buildLayerSynth(soundId);
-    this.applyEnvelope(newSynth, mapping.knobsByEffect);
+    applyMappingToSynth(newSynth, mapping);
     if (channel) newSynth.connect(channel);
     this.activePlaybackSynths.add(newSynth);
     return newSynth;
+  }
+
+  updatePlaybackSynthMapping(synth: PolySynth<Synth>, mapping: SoundMapping): void {
+    applyMappingToSynth(synth, mapping);
   }
 
   releasePlaybackSynth(synth: PolySynth<Synth>): void {
@@ -106,34 +103,35 @@ class AudioEngine {
 
   // ── Softpot preview ─────────────────────────────────────────────────────
 
-  beginPreviewNote(layerId: LayerId, soundId: NonNullable<SoundId>, freqHz: number): void {
+  beginPreviewNote(
+    layerId: LayerId,
+    mapping: SoundMapping,
+    freqHz: number,
+  ): void {
     if (!this.ready) return;
-    const synth = this.previewSynths.get(layerId);
-    if (!synth) return;
-    if (this.previewSoundIds.get(layerId) !== soundId) {
-      synth.dispose();
-      const replacement = buildLayerSynth(soundId).toDestination();
-      this.previewSynths.set(layerId, replacement);
-    }
     const current = this.previewSynths.get(layerId);
     if (!current) return;
+    applyMappingToSynth(current, mapping);
     const audioNow = getToneContext().currentTime;
     const prevFreq = this.previewFreqs.get(layerId);
     if (prevFreq != null) current.releaseAll(audioNow);
-    current.triggerAttack(freqHz, audioNow + 0.005);
+    current.triggerAttack(freqHz, now());
     this.previewFreqs.set(layerId, freqHz);
-    this.previewSoundIds.set(layerId, soundId);
   }
 
-  updatePreviewNote(layerId: LayerId, soundId: NonNullable<SoundId>, freqHz: number): void {
+  updatePreviewNote(
+    layerId: LayerId,
+    mapping: SoundMapping,
+    freqHz: number,
+  ): void {
     if (!this.ready) return;
-    const synth = this.previewSynths.get(layerId);
-    if (!synth) return;
+    const current = this.previewSynths.get(layerId);
+    if (!current) return;
+    applyMappingToSynth(current, mapping);
     const audioNow = getToneContext().currentTime;
-    synth.releaseAll(audioNow);
-    synth.triggerAttack(freqHz, audioNow + 0.005);
+    current.releaseAll(audioNow);
+    current.triggerAttack(freqHz, now());
     this.previewFreqs.set(layerId, freqHz);
-    this.previewSoundIds.set(layerId, soundId);
   }
 
   endPreviewNote(layerId: LayerId): void {
@@ -141,7 +139,6 @@ class AudioEngine {
     const synth = this.previewSynths.get(layerId);
     synth?.releaseAll(getToneContext().currentTime);
     this.previewFreqs.delete(layerId);
-    this.previewSoundIds.delete(layerId);
   }
 }
 

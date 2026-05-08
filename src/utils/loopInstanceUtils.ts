@@ -1,5 +1,5 @@
 import type { LayerLoopInstance, LoopDefinition } from "../types/layer";
-import { getRepeatEveryForUnit } from "./layerState";
+import { getRepeatEveryForUnit, isRepeatOff } from "./layerState";
 
 const LOOP_NOTE_SNAP_TO_BOUNDARY_EPSILON = 0.03;
 
@@ -159,9 +159,6 @@ export function getValidInstanceInfoForProposedStart(
   definition: LoopDefinition,
   compositionDims: LoopInstanceCompositionDims,
 ): PlacementResult | null {
-  const spanBeats = definition.spanBeats;
-  if (spanBeats == null || spanBeats <= 0) return null;
-  const { compositionEndBeat, beatsPerMeasure } = compositionDims;
   const proposedStart = proposedInstance.startBeat;
   const spans = loopInstanceSpans(existingInstances);
 
@@ -172,18 +169,18 @@ export function getValidInstanceInfoForProposedStart(
 
   const insertIndex = placement.insertIndex;
   const nextStartBeat =
-    insertIndex < spans.length ? spans[insertIndex].startBeat : Infinity;
-  const maxAllowedEndBeat = Math.min(compositionEndBeat, nextStartBeat);
+    insertIndex < spans.length ? spans[insertIndex].startBeat : null;
 
-  if (proposedStart + spanBeats > maxAllowedEndBeat) {
-    return null;
-  }
+  const maxEndBeat =
+    proposedInstance.repeatCount == null && nextStartBeat == null
+      ? null
+      : Math.min(nextStartBeat ?? Infinity, proposedInstance.endBeat!);
 
   const fitted = fitRepeatCountToWindow(
     proposedInstance,
-    maxAllowedEndBeat,
+    maxEndBeat,
     definition,
-    beatsPerMeasure,
+    compositionDims,
   );
   if (fitted == null) return null;
 
@@ -215,15 +212,18 @@ function endBeatFromRepeatCount(
  */
 export function fitRepeatCountToWindow(
   instance: Pick<LayerLoopInstance, "startBeat" | "repeatCount">,
-  maxEndBeat: number,
+  maxEndBeat: number | null,
   definition: LoopDefinition,
-  beatsPerMeasure: number,
+  compositionDims: LoopInstanceCompositionDims,
 ): RepeatCountFitResult | null {
-  const spanBeats = definition.spanBeats;
-  if (spanBeats == null) return null;
+  const spanBeats = definition.spanBeats!;
   const startBeat = instance.startBeat;
-  if (spanBeats <= 0 || startBeat + spanBeats > maxEndBeat) return null;
-  const step = repeatStrideBeats(definition, beatsPerMeasure);
+  const endBeat =
+    maxEndBeat == null
+      ? compositionDims.compositionEndBeat
+      : Math.min(compositionDims.compositionEndBeat, maxEndBeat ?? Infinity);
+  if (spanBeats <= 0 || startBeat + spanBeats > endBeat) return null;
+  const step = repeatStrideBeats(definition, compositionDims.beatsPerMeasure);
   let repeatCount: number;
   if (step == 0) {
     repeatCount = 0;
@@ -232,14 +232,20 @@ export function fitRepeatCountToWindow(
       startBeat,
       spanBeats,
       step,
-      maxEndBeat,
+      endBeat,
     );
     const preferredRepeatCount = instance.repeatCount ?? maxRepeatCount;
     repeatCount = Math.min(preferredRepeatCount, maxRepeatCount);
   }
-  return {
+  const finalEndBeat = endBeatFromRepeatCount(
+    { startBeat },
     repeatCount,
-    endBeat: endBeatFromRepeatCount({ startBeat }, repeatCount, definition, beatsPerMeasure),
+    definition,
+    compositionDims.beatsPerMeasure,
+  );
+  return {
+    repeatCount: maxEndBeat == null ? null : repeatCount,
+    endBeat: finalEndBeat,
   };
 }
 
@@ -252,32 +258,32 @@ export function reflowInstanceRepeatsForDefinition(
   definition: LoopDefinition,
   compositionDims: LoopInstanceCompositionDims,
 ): RepeatCountFitResult[] {
-  const spanBeats = definition.spanBeats;
-  if (spanBeats == null) {
-    return instances.map((i) => ({
-      repeatCount: i.repeatCount,
-      endBeat: i.endBeat ?? i.startBeat,
-    }));
-  }
-  const { compositionEndBeat, beatsPerMeasure } = compositionDims;
-  return instances.map((instance, idx) => {
+  const repeatOff = isRepeatOff(definition);
+  const next = instances.map((instance, idx) => {
+    if (repeatOff) {
+      return {
+        repeatCount: null,
+        endBeat: instance.startBeat + definition.spanBeats!,
+      };
+    }
     const nextStartBeat =
-      idx + 1 < instances.length ? instances[idx + 1].startBeat : Infinity;
-    const maxEndBeat = Math.min(compositionEndBeat, nextStartBeat);
+      idx + 1 < instances.length ? instances[idx + 1].startBeat : null;
+    const maxEndBeat =
+      instance.repeatCount == null && nextStartBeat == null
+        ? null
+        : Math.min(nextStartBeat ?? Infinity, instance.endBeat!);
     const fitted = fitRepeatCountToWindow(
       instance,
       maxEndBeat,
       definition,
-      beatsPerMeasure,
+      compositionDims,
     );
     if (fitted == null) {
-      return {
-        repeatCount: 0,
-        endBeat: instance.startBeat + spanBeats,
-      };
+      throw new Error("Failed to fit repeat count to window.");
     }
     return fitted;
   });
+  return next;
 }
 
 export interface CompositionTrimResult {
@@ -296,16 +302,14 @@ export function findLastPlayableInstanceForCompositionEnd(
   definition: LoopDefinition,
   compositionDims: LoopInstanceCompositionDims,
 ): CompositionTrimResult | null {
-  const spanBeats = definition.spanBeats;
-  if (spanBeats == null) return null;
-  const { compositionEndBeat, beatsPerMeasure } = compositionDims;
   for (let i = instances.length - 1; i >= 0; i--) {
     const instance = instances[i];
+    const maxEndBeat = instance.repeatCount == null ? null : instance.endBeat;
     const fitted = fitRepeatCountToWindow(
       instance,
-      compositionEndBeat,
+      maxEndBeat,
       definition,
-      beatsPerMeasure,
+      compositionDims,
     );
     if (!fitted) continue;
     return {
@@ -327,16 +331,13 @@ export function getExpandedRepeatInfoForLastInstance(
   compositionDims: LoopInstanceCompositionDims,
 ): number | null {
   if (instances.length === 0) return null;
-  const spanBeats = definition.spanBeats;
-  if (spanBeats == null) return null;
-  const { compositionEndBeat, beatsPerMeasure } = compositionDims;
   const last = instances[instances.length - 1];
   if (last.repeatCount != null) return last.endBeat;
   const fitted = fitRepeatCountToWindow(
     last,
-    compositionEndBeat,
+    null,
     definition,
-    beatsPerMeasure,
+    compositionDims,
   );
   return fitted?.endBeat ?? null;
 }

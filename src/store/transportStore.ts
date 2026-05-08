@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { TransportStoreState } from "../types/transport";
-import { transportDebug } from "../utils/transportDebug";
 
 export const TRANSPORT_STORE_KEY = "loop-soup-transport";
 
@@ -18,37 +17,15 @@ export const useTransportStore = create<TransportStoreState>()((set) => ({
   isScrubbing: false,
   playheadBeat: 0,
   viewMeasureIndex: 0,
+  followNowbar: true,
 
-  setPlaying: (value) =>
-    set((s) => {
-      transportDebug("setPlaying", { from: s.isPlaying, to: value });
-      return { isPlaying: value };
-    }),
-  togglePlaying: () =>
-    set((s) => {
-      const next = !s.isPlaying;
-      transportDebug("togglePlaying", { from: s.isPlaying, to: next });
-      return { isPlaying: next };
-    }),
+  setPlaying: (value) => set({ isPlaying: value }),
+  togglePlaying: () => set((s) => ({ isPlaying: !s.isPlaying })),
   setExtendOn: (value) => set({ extendOn: value }),
   toggleExtendOn: () => set((s) => ({ extendOn: !s.extendOn })),
   setScrubbing: (value) =>
-    set((s) => {
-      if (s.isScrubbing === value) return s;
-      transportDebug("setScrubbing", { from: s.isScrubbing, to: value });
-      return { isScrubbing: value };
-    }),
-  setPlayheadBeat: (beat) =>
-    set((s) => {
-      transportDebug("setPlayheadBeat", { from: s.playheadBeat, to: beat });
-      return { playheadBeat: beat };
-    }),
-  setViewMeasureIndex: (index) =>
-    set((s) => {
-      transportDebug("setViewMeasureIndex", {
-        from: s.viewMeasureIndex,
-        to: index,
-      });
-      return { viewMeasureIndex: index };
-    }),
+    set((s) => (s.isScrubbing === value ? s : { isScrubbing: value })),
+  setPlayheadBeat: (beat) => set({ playheadBeat: beat }),
+  setViewMeasureIndex: (index) => set({ viewMeasureIndex: index }),
+  setFollowNowbar: (value) => set({ followNowbar: value }),
 }));
