@@ -88,17 +88,6 @@ function searchPlacementAtBeat(
   return { insertIndex, overlapsExisting };
 }
 
-/**
- * Returns a finalized instance's end beat.
- * Utilities in this module assume finalized instances only.
- */
-export function getLoopInstanceEndBeat(instance: LayerLoopInstance): number {
-  if (instance.endBeat == null) {
-    throw new Error("Expected finalized loop instance with non-null endBeat.");
-  }
-  return instance.endBeat;
-}
-
 /** Returns spans from finalized instance cache (startBeat/endBeat). */
 export function loopInstanceSpans(
   instances: LayerLoopInstance[],
@@ -109,7 +98,7 @@ export function loopInstanceSpans(
       : [
           {
             startBeat: instance.startBeat,
-            endBeat: Math.ceil(getLoopInstanceEndBeat(instance)),
+            endBeat: Math.ceil(instance.endBeat!),
           },
         ],
   );
@@ -138,6 +127,20 @@ export function findInstanceIndex(
   return result;
 }
 
+/** Shifts instances so the earliest startBeat === 0. */
+export function normalizeInstancesForPlacement(
+  instances: LayerLoopInstance[],
+): LayerLoopInstance[] {
+  const sorted = [...instances].sort((a, b) => a.startBeat - b.startBeat);
+  const offset = sorted[0]!.startBeat;
+  if (offset === 0) return sorted;
+  return sorted.map((inst) => ({
+    ...inst,
+    startBeat: inst.startBeat - offset,
+    endBeat: inst.endBeat != null ? inst.endBeat - offset : null,
+  }));
+}
+
 export interface ValidInstanceInfo {
   repeatCount: number | null;
   endBeat: number;
@@ -145,50 +148,102 @@ export interface ValidInstanceInfo {
 
 export interface RepeatCountFitResult extends ValidInstanceInfo {}
 
-export interface PlacementResult extends ValidInstanceInfo {
+export interface MultiPlacementResult {
+  proposedInstances: LayerLoopInstance[];
   insertIndex: number;
 }
 
 /**
- * Computes placement info for a new/moved instance.
- * `existingInstances` should be current placements (excluding the proposed row if not yet stored).
+ * Iterates backwards through `instances` to find the last one that fits
+ * before `nextBlockingBeat` (or composition end when null) and returns its
+ * fitted index + repeatCount + endBeat, or null if none fit.
  */
-export function getValidInstanceInfoForProposedStart(
-  existingInstances: LayerLoopInstance[],
-  proposedInstance: LayerLoopInstance,
+function findLastFittableInstance(
+  instances: LayerLoopInstance[],
+  nextBlockingBeat: number | null,
   definition: LoopDefinition,
   compositionDims: LoopInstanceCompositionDims,
-): PlacementResult | null {
-  const proposedStart = proposedInstance.startBeat;
-  const spans = loopInstanceSpans(existingInstances);
+): { index: number; repeatCount: number | null; endBeat: number } | null {
+  for (let i = instances.length - 1; i >= 0; i--) {
+    const inst = instances[i];
+    const maxEndBeat =
+      inst.repeatCount == null && nextBlockingBeat == null
+        ? null
+        : Math.min(nextBlockingBeat ?? Infinity, inst.endBeat ?? Infinity);
+    const fitted = fitRepeatCountToWindow(
+      inst,
+      maxEndBeat,
+      definition,
+      compositionDims,
+    );
+    if (fitted) return { index: i, ...fitted };
+  }
+  return null;
+}
 
-  const placement = searchPlacementAtBeat(spans, proposedStart);
-  if (placement.overlapsExisting) {
-    return null;
+/**
+ * Places `proposedInstances` starting at `proposedStartBeat`, fitting them
+ * against `existingInstances` and the composition window.
+ *
+ * - Sorts and shifts all proposed instances so the first starts at `proposedStartBeat`.
+ * - Returns an empty list if the start overlaps an existing instance.
+ * - Drops proposed instances that start at or after the next existing instance (or composition end).
+ * - Fits the last remaining instance's repeatCount/endBeat; if it can't fit,
+ *   drops it and tries the one before, until the list is empty.
+ */
+export function getValidInstancesForProposedPlacement(
+  existingInstances: LayerLoopInstance[],
+  proposedInstances: LayerLoopInstance[],
+  proposedStartBeat: number,
+  definition: LoopDefinition,
+  compositionDims: LoopInstanceCompositionDims,
+): MultiPlacementResult {
+  const sorted = [...proposedInstances].sort(
+    (a, b) => a.startBeat - b.startBeat,
+  );
+  const delta = proposedStartBeat - sorted[0].startBeat;
+  const shifted = sorted.map((inst) => ({
+    ...inst,
+    startBeat: inst.startBeat + delta,
+    endBeat: inst.endBeat != null ? inst.endBeat + delta : null,
+  }));
+
+  const spans = loopInstanceSpans(existingInstances);
+  const { insertIndex, overlapsExisting } = searchPlacementAtBeat(
+    spans,
+    proposedStartBeat,
+  );
+
+  if (overlapsExisting) {
+    return { proposedInstances: [], insertIndex };
   }
 
-  const insertIndex = placement.insertIndex;
-  const nextStartBeat =
+  const nextExistingStartBeat =
     insertIndex < spans.length ? spans[insertIndex].startBeat : null;
+  const cutoffBeat =
+    nextExistingStartBeat ?? compositionDims.compositionEndBeat;
 
-  const maxEndBeat =
-    proposedInstance.repeatCount == null && nextStartBeat == null
-      ? null
-      : Math.min(nextStartBeat ?? Infinity, proposedInstance.endBeat!);
+  const valid = shifted.filter((inst) => inst.startBeat < cutoffBeat);
 
-  const fitted = fitRepeatCountToWindow(
-    proposedInstance,
-    maxEndBeat,
+  const lastFit = findLastFittableInstance(
+    valid,
+    nextExistingStartBeat,
     definition,
     compositionDims,
   );
-  if (fitted == null) return null;
 
-  return {
-    insertIndex,
-    repeatCount: fitted.repeatCount,
-    endBeat: fitted.endBeat,
+  if (lastFit == null) {
+    return { proposedInstances: [], insertIndex };
+  }
+
+  const result = valid.slice(0, lastFit.index + 1);
+  result[result.length - 1] = {
+    ...result[result.length - 1],
+    repeatCount: lastFit.repeatCount,
+    endBeat: lastFit.endBeat,
   };
+
+  return { proposedInstances: result, insertIndex };
 }
 
 function endBeatFromRepeatCount(
@@ -249,6 +304,133 @@ export function fitRepeatCountToWindow(
   };
 }
 
+/** Returns true if sortedIds (ascending) form a contiguous (no-gap) run within [0, totalInstances). */
+export function areInstanceIdsConsecutive(
+  sortedIds: number[],
+  totalInstances: number,
+): boolean {
+  if (sortedIds.length === 0) return false;
+  if (sortedIds[0] < 0 || sortedIds[sortedIds.length - 1] >= totalInstances)
+    return false;
+  return (
+    sortedIds[sortedIds.length - 1] - sortedIds[0] + 1 === sortedIds.length
+  );
+}
+
+/**
+ * Valid absolute startBeat range for the first selected instance when shifting the
+ * whole consecutive group together.
+ *
+ * Hard constraints (always):
+ *   - firstSelected.newStart >= prevNonSelected.endBeat (or 0)
+ *   - lastSelected.newStart + spanBeats <= min(nextNonSelected.startBeat, compositionEnd)
+ *
+ * Additional hard constraint when lastSelected.repeatCount is non-null:
+ *   - lastSelected full endBeat (newStart + repeatCount*stride + spanBeats) must also
+ *     fit within min(nextNonSelected.startBeat, compositionEnd)
+ *
+ * When lastSelected.repeatCount is null, the endBeat overflow is soft (shown red in ghost,
+ * trimmed on commit). Ticks are still limited to the hard start constraint.
+ *
+ * `sortedIds` must be sorted ascending by the caller.
+ */
+export function getValidShiftRange(
+  instances: LayerLoopInstance[],
+  sortedIds: number[],
+  definition: LoopDefinition,
+  compositionDims: LoopInstanceCompositionDims,
+): { minFirstStart: number; maxFirstStart: number } {
+  const { beatsPerMeasure, compositionEndBeat } = compositionDims;
+  const spanBeats = definition.spanBeats!;
+  const firstId = sortedIds[0];
+  const lastId = sortedIds[sortedIds.length - 1];
+  const firstInst = instances[firstId];
+  const lastInst = instances[lastId];
+  const stride = repeatStrideBeats(definition, beatsPerMeasure);
+
+  const prevInst = firstId > 0 ? instances[firstId - 1] : null;
+  const nextInst = lastId < instances.length - 1 ? instances[lastId + 1] : null;
+
+  const minFirstStart = prevInst != null ? prevInst.endBeat! : 0;
+
+  const blockingBeat = Math.min(
+    nextInst != null ? nextInst.startBeat : Infinity,
+    compositionEndBeat,
+  );
+  // Offset between first and last selected startBeat
+  const groupSpread = lastInst.startBeat - firstInst.startBeat;
+
+  // Hard: lastSelected.newStart + spanBeats <= blockingBeat
+  const hardMaxFirst = blockingBeat - spanBeats - groupSpread;
+
+  let maxFirstStart: number;
+  if (lastInst.repeatCount !== null && stride > 0) {
+    // Hard: lastSelected full endBeat must fit too
+    const requiredSpan = lastInst.repeatCount * stride + spanBeats;
+    maxFirstStart = Math.min(
+      hardMaxFirst,
+      blockingBeat - requiredSpan - groupSpread,
+    );
+  } else {
+    maxFirstStart = hardMaxFirst;
+  }
+
+  return {
+    minFirstStart,
+    maxFirstStart: Math.max(minFirstStart, maxFirstStart),
+  };
+}
+
+/**
+ * Valid absolute startBeat range for a single instance being edited.
+ * Hard min: previous instance endBeat (or 0).
+ * Hard max: instance.endBeat - spanBeats (must still fit at least one play).
+ */
+export function getValidStartBeatRange(
+  instances: LayerLoopInstance[],
+  instanceIdx: number,
+  definition: LoopDefinition,
+): { min: number; max: number } {
+  const spanBeats = definition.spanBeats!;
+  const instance = instances[instanceIdx];
+  const prevInst = instanceIdx > 0 ? instances[instanceIdx - 1] : null;
+  const min = prevInst != null ? prevInst.endBeat! : 0;
+  const max = instance.endBeat! - spanBeats;
+  return { min, max: Math.max(min, max) };
+}
+
+/**
+ * Valid endBeat range for a single instance being edited.
+ *
+ * Hard min: instance.startBeat + spanBeats (at least one play).
+ * Hard max when repeatCount non-null: min(nextInst.startBeat, compositionEnd).
+ * Soft max when repeatCount null: compositionEnd — caller may allow ticks beyond
+ *   nextInst.startBeat (showing invalid overflow in red) and trims on commit.
+ */
+export function getValidEndBeatRange(
+  instances: LayerLoopInstance[],
+  instanceIdx: number,
+  definition: LoopDefinition,
+  compositionDims: LoopInstanceCompositionDims,
+): { min: number; max: number; isSoftMax: boolean } {
+  const { compositionEndBeat } = compositionDims;
+  const spanBeats = definition.spanBeats!;
+  const instance = instances[instanceIdx];
+  const nextInst =
+    instanceIdx < instances.length - 1 ? instances[instanceIdx + 1] : null;
+  const min = instance.startBeat + spanBeats;
+  const hardMax = Math.min(
+    nextInst != null ? nextInst.startBeat : compositionEndBeat,
+    compositionEndBeat,
+  );
+  const isSoftMax = instance.repeatCount === null;
+  return {
+    min,
+    max: isSoftMax ? compositionEndBeat : hardMax,
+    isSoftMax,
+  };
+}
+
 /**
  * Recomputes per-instance repeatCount/endBeat for updated repeat settings, fitting each
  * instance before the next instance (or composition end).
@@ -302,23 +484,18 @@ export function findLastPlayableInstanceForCompositionEnd(
   definition: LoopDefinition,
   compositionDims: LoopInstanceCompositionDims,
 ): CompositionTrimResult | null {
-  for (let i = instances.length - 1; i >= 0; i--) {
-    const instance = instances[i];
-    const maxEndBeat = instance.repeatCount == null ? null : instance.endBeat;
-    const fitted = fitRepeatCountToWindow(
-      instance,
-      maxEndBeat,
-      definition,
-      compositionDims,
-    );
-    if (!fitted) continue;
-    return {
-      lastPlayableIndex: i,
-      repeatCountAtLastPlayable: fitted.repeatCount,
-      endBeatAtLastPlayable: fitted.endBeat,
-    };
-  }
-  return null;
+  const result = findLastFittableInstance(
+    instances,
+    null,
+    definition,
+    compositionDims,
+  );
+  if (!result) return null;
+  return {
+    lastPlayableIndex: result.index,
+    repeatCountAtLastPlayable: result.repeatCount,
+    endBeatAtLastPlayable: result.endBeat,
+  };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useMemo, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useMidiStore } from "../store/midiStore";
@@ -7,6 +7,8 @@ import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
 import { usePlayheadDrag } from "../hooks/usePlayheadDrag";
+import { usePlacementGhost } from "../hooks/usePlacementGhost";
+import { useInstanceEditor } from "../hooks/useInstanceEditor";
 import { Nowbar } from "./Nowbar";
 import { RollPlacementButtons } from "./midi-settings/RollPlacementButtons";
 import { compositionLoopBeatLength } from "../utils/compositionState";
@@ -15,13 +17,8 @@ import {
   resolveTimelineNoteEndBeat,
   timelineNoteFractionRect,
 } from "../utils/timelineNoteLayout";
-import {
-  loopInstanceSpans,
-  findInstanceIndex,
-  type InstanceSpan,
-} from "../utils/loopInstanceUtils";
+import { findInstanceIndex } from "../utils/loopInstanceUtils";
 import { timelineNoteSelectionHighlightClasses } from "../ui/timelineNoteHighlight";
-
 const MAX_VISIBLE_ROWS = 6;
 function rowHeightForLoopCount(loopCount: number) {
   if (loopCount <= 1) return 24;
@@ -30,22 +27,78 @@ function rowHeightForLoopCount(loopCount: number) {
   return 14;
 }
 
+function pct(fract: number) {
+  return `${fract * 100}%`;
+}
+
+interface GhostSpanDef {
+  startBeat: number;
+  endBeat: number;
+  notes: { startBeat: number; endBeat: number }[];
+}
+
+function GhostSpans({
+  spans,
+  compositionBeats,
+}: {
+  spans: GhostSpanDef[];
+  compositionBeats: number;
+}) {
+  return (
+    <>
+      {spans.map((ghost, gIdx) => {
+        const { leftFract, widthFract } = timelineNoteFractionRect(
+          ghost.startBeat,
+          ghost.endBeat,
+          compositionBeats,
+        );
+        const spanWidthBeats = ghost.endBeat - ghost.startBeat;
+        return (
+          <div
+            key={`ghost-${gIdx}`}
+            className="comp-ghost"
+            style={{ left: pct(leftFract), width: pct(widthFract), pointerEvents: "none" }}
+          >
+            {spanWidthBeats > 0 &&
+              ghost.notes.map((note, nIdx) => (
+                <div
+                  key={`gn-${nIdx}`}
+                  className="comp-ghost-note"
+                  style={{
+                    left: pct((note.startBeat - ghost.startBeat) / spanWidthBeats),
+                    width: pct((note.endBeat - note.startBeat) / spanWidthBeats),
+                  }}
+                />
+              ))}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export default function CompositionView() {
   const {
     selectedLayerId,
     selectedLoopId,
-    selectedInstanceId,
+    selectedInstanceIds,
     isRecordingLoop,
     toggleLoopSelection,
     toggleInstanceSelection,
+    toggleAddInstanceSelection,
+    pendingPlacement,
+    instanceEditState,
   } = useLayerEditorStore(
     useShallow((s) => ({
       selectedLayerId: s.selectedLayerId,
       selectedLoopId: s.selectedLoopId,
-      selectedInstanceId: s.selectedInstanceId,
+      selectedInstanceIds: s.selectedInstanceIds,
       isRecordingLoop: s.isRecordingLoop,
       toggleLoopSelection: s.toggleLoopSelection,
       toggleInstanceSelection: s.toggleInstanceSelection,
+      toggleAddInstanceSelection: s.toggleAddInstanceSelection,
+      pendingPlacement: s.pendingPlacement,
+      instanceEditState: s.instanceEditState,
     })),
   );
   const layerLoops = useLayerStore((s) => s.layers[selectedLayerId].layerLoops);
@@ -70,13 +123,12 @@ export default function CompositionView() {
       midiMeasuresVisible: s.midiMeasuresVisible,
     })),
   );
-  const { playheadBeat, setViewMeasureIndex } =
-    useTransportStore(
-      useShallow((s) => ({
-        playheadBeat: s.playheadBeat,
-        setViewMeasureIndex: s.setViewMeasureIndex,
-      })),
-    );
+  const { playheadBeat, setViewMeasureIndex } = useTransportStore(
+    useShallow((s) => ({
+      playheadBeat: s.playheadBeat,
+      setViewMeasureIndex: s.setViewMeasureIndex,
+    })),
+  );
   const timelineRevision = useSyncExternalStore(
     (onStoreChange) => loopTimeline.subscribe(onStoreChange),
     () => loopTimeline.getRevision(),
@@ -87,6 +139,10 @@ export default function CompositionView() {
   const compositionBeats = compositionLoopBeatLength(
     totalMeasures,
     beatsPerMeasure,
+  );
+  const compositionDims = useMemo(
+    () => ({ beatsPerMeasure, compositionEndBeat: compositionBeats }),
+    [beatsPerMeasure, compositionBeats],
   );
 
   const loops = layerLoops;
@@ -110,13 +166,17 @@ export default function CompositionView() {
     return out;
   }, [loops, selectedLayerId, timelineRevision]);
 
-  const instanceSpansByLoop = useMemo(() => {
-    const out = new Map<number, InstanceSpan[]>();
-    for (let i = 0; i < loops.length; i++) {
-      out.set(i, loopInstanceSpans(loops[i].loopInstances));
-    }
-    return out;
-  }, [loops]);
+  const { ghostData, getTrackProps } = usePlacementGhost({
+    selectedLayerId,
+    layerLoops,
+    compositionBeats,
+    beatsPerMeasure,
+  });
+
+  const { rulerTicks, ghostsByLoopId, onRulerClick } = useInstanceEditor(
+    selectedLoopIndex >= 0 ? selectedLoopIndex : null,
+    compositionDims,
+  );
 
   const handleRulerDrag = usePlayheadDrag<HTMLDivElement>({
     getBeatWindow: () => ({ startBeat: 0, endBeat: compositionBeats }),
@@ -128,6 +188,17 @@ export default function CompositionView() {
       setViewMeasureIndex(Math.max(0, Math.min(maxStart, targetMeasure)));
     },
   });
+
+  const handleRulerClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!instanceEditState) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const beatAtClick =
+        ((e.clientX - rect.left) / rect.width) * compositionBeats;
+      onRulerClick(beatAtClick, rect.width);
+    },
+    [instanceEditState, compositionBeats, onRulerClick],
+  );
 
   const loopOfLabel = `loop ${selectedLoopIndex >= 0 ? selectedLoopIndex + 1 : "_"} of ${loops.length}`;
 
@@ -143,8 +214,9 @@ export default function CompositionView() {
     >
       <div className="comp-layer-lbl">{`Layer ${selectedLayerId}`}</div>
       <div
-        className="comp-ruler-track"
-        onPointerDown={handleRulerDrag}
+        className={`comp-ruler-track ${instanceEditState ? "comp-ruler-track--edit" : ""}`}
+        onPointerDown={instanceEditState ? undefined : handleRulerDrag}
+        onClick={instanceEditState ? handleRulerClick : undefined}
         aria-label="Seek playhead"
       >
         {Array.from({ length: totalMeasures }).map((_, mIdx) => (
@@ -166,6 +238,14 @@ export default function CompositionView() {
             ))}
           </div>
         ))}
+        {/* Edit-mode ticks */}
+        {rulerTicks.map((beat) => (
+          <div
+            key={`etick-${beat}`}
+            className={`comp-ruler-edit-tick comp-ruler-edit-tick--${instanceEditState?.activeMode ?? "shift"}`}
+            style={{ left: `${(beat / compositionBeats) * 100}%` }}
+          />
+        ))}
         <span className="comp-ruler-loop-of" aria-live="polite">
           {loopOfLabel}
         </span>
@@ -181,8 +261,13 @@ export default function CompositionView() {
 
       {loops.map((loop, idx) => {
         const isLoopSelected = idx === selectedLoopIndex;
+        const editedInstanceIds =
+          instanceEditState != null && isLoopSelected
+            ? new Set(instanceEditState.sortedIds)
+            : null;
         const rollPlacement =
           midiLoopRollPlacement[selectedLayerId]?.[idx] ?? "both";
+        const editGhosts = ghostsByLoopId.get(idx);
         return (
           <Fragment key={idx}>
             <button
@@ -196,8 +281,17 @@ export default function CompositionView() {
               </span>
             </button>
             <div
-              className={`ctrack ${isLoopSelected ? "ctrack-selected" : ""}`}
-              onClick={() => toggleLoopSelection(selectedLayerId, idx)}
+              className={`ctrack ${isLoopSelected ? "ctrack-selected" : ""}${instanceEditState != null && isLoopSelected ? " ctrack--editing" : ""}${pendingPlacement?.loopId === idx ? " ctrack--placement" : ""}`}
+              onClick={(e) => {
+                const trackProps = getTrackProps(idx);
+                if (trackProps) {
+                  trackProps.onClick(e);
+                } else {
+                  toggleLoopSelection(selectedLayerId, idx);
+                }
+              }}
+              onMouseMove={getTrackProps(idx)?.onMouseMove}
+              onMouseLeave={getTrackProps(idx)?.onMouseLeave}
             >
               {Array.from({ length: Math.max(0, totalMeasures - 1) }).map(
                 (_, measureIdx) => (
@@ -210,30 +304,41 @@ export default function CompositionView() {
                   />
                 ),
               )}
-              {(instanceSpansByLoop.get(idx) ?? []).map(
-                ({ startBeat, endBeat }, spanIdx) => {
-                  const { leftFract, widthFract } = timelineNoteFractionRect(
-                    startBeat,
-                    endBeat,
-                    compositionBeats,
-                  );
-                  return (
-                    <div
-                      key={`ispan-${idx}-${spanIdx}`}
-                      className={`comp-instance-span mnote-${selectedLayerId.toLowerCase()}`}
-                      style={{
-                        left: `${leftFract * 100}%`,
-                        width: `${widthFract * 100}%`,
-                      }}
-                    />
-                  );
-                },
+              {loop.loopInstances.map((inst, instanceIdx) => {
+                if (editedInstanceIds?.has(instanceIdx)) return null;
+                if (inst.endBeat == null) return null;
+                const startBeat = inst.startBeat;
+                const endBeat = Math.ceil(inst.endBeat!);
+                const { leftFract, widthFract } = timelineNoteFractionRect(
+                  startBeat,
+                  endBeat,
+                  compositionBeats,
+                );
+                return (
+                  <div
+                    key={`ispan-${idx}-${instanceIdx}`}
+                    className={`comp-instance-span mnote-${selectedLayerId.toLowerCase()}`}
+                    style={{
+                      left: `${leftFract * 100}%`,
+                      width: `${widthFract * 100}%`,
+                    }}
+                  />
+                );
+              })}
+              {/* Placement-mode ghosts (copy/paste) */}
+              {ghostData?.loopId === idx && (
+                <GhostSpans spans={ghostData.ghosts} compositionBeats={compositionBeats} />
+              )}
+              {/* Edit-mode ghosts (shift/start/end) */}
+              {editGhosts && (
+                <GhostSpans spans={editGhosts} compositionBeats={compositionBeats} />
               )}
               {(timelineNotesByLoop.get(idx) ?? []).map((noteRow, barIdx) => {
                 const instanceIndex = findInstanceIndex(
                   noteRow.absoluteStartBeat - noteRow.repeatOffsetBeats,
                   loop.loopInstances,
                 );
+                if (editedInstanceIds?.has(instanceIndex)) return null;
                 const resolvedEnd = resolveTimelineNoteEndBeat(
                   noteRow.absoluteStartBeat,
                   noteRow.absoluteEndBeat,
@@ -248,7 +353,7 @@ export default function CompositionView() {
                 const hlClass = timelineNoteSelectionHighlightClasses({
                   selectedLoopId,
                   selectedLayerId,
-                  selectedInstanceId,
+                  selectedInstanceIds,
                   noteLayerId: selectedLayerId,
                   noteLoopIndex: idx,
                   noteInstanceIndex: instanceIndex,
@@ -256,7 +361,7 @@ export default function CompositionView() {
                 const isInstanceSelected =
                   selectedLoopId != null &&
                   isLoopSelected &&
-                  selectedInstanceId === instanceIndex;
+                  selectedInstanceIds.includes(instanceIndex);
                 return (
                   <button
                     key={`tn-${idx}-${instanceIndex}-${noteRow.repeatOffsetBeats}-${noteRow.noteIndexInDefinition}-${noteRow.absoluteStartBeat}-${barIdx}`}
@@ -268,11 +373,20 @@ export default function CompositionView() {
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleInstanceSelection(
-                        selectedLayerId,
-                        idx,
-                        instanceIndex,
-                      );
+                      if (instanceEditState) return;
+                      if (e.metaKey || e.ctrlKey) {
+                        toggleAddInstanceSelection(
+                          selectedLayerId,
+                          idx,
+                          instanceIndex,
+                        );
+                      } else {
+                        toggleInstanceSelection(
+                          selectedLayerId,
+                          idx,
+                          instanceIndex,
+                        );
+                      }
                     }}
                     aria-pressed={isInstanceSelected}
                   />

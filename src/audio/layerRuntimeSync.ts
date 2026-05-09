@@ -39,41 +39,65 @@ export function syncLoopMapping(
   );
 }
 
-/** Build one new Part for a freshly added instance (no prior Part to dispose). */
-export function syncAddInstance(
+/** Build new Parts for freshly added instances (no prior Parts to dispose). */
+export function syncAddInstances(
   layers: LayersState,
   layerId: LayerId,
   loopId: LayerLoopId,
-  instanceId: number,
-  definition: LoopDefinition,
-  instance: LayerLoopInstance,
+  instances: LayerLoopInstance[],
 ): void {
   loopTimeline.rebuildLoop(layerId, loopId, layers);
-  partEngine.buildForInstance(
-    layerId,
-    loopId,
-    instanceId,
-    definition,
-    instance,
-    layers[layerId].layerLoops[loopId].mapping,
-    (id, mapping) => audioEngine.createLoopVoice(id, mapping),
-  );
+  const loop = layers[layerId].layerLoops[loopId];
+  for (const instance of instances) {
+    partEngine.buildForInstance(
+      layerId,
+      loopId,
+      loop.definition,
+      instance,
+      loop.mapping,
+      (id, mapping) => audioEngine.createLoopVoice(id, mapping),
+    );
+  }
 }
 
-/** Rebuild the Part for one updated instance id. */
+/** Dispose old Parts and build new ones after instances are shifted. Rebuilds loop timeline once. */
+export function syncShiftInstances(
+  layers: LayersState,
+  layerId: LayerId,
+  loopId: LayerLoopId,
+  oldStartBeats: number[],
+  newInstances: LayerLoopInstance[],
+): void {
+  loopTimeline.rebuildLoop(layerId, loopId, layers);
+  const loop = layers[layerId].layerLoops[loopId];
+  for (const startBeat of oldStartBeats) {
+    partEngine.disposeForInstance(layerId, loopId, startBeat);
+  }
+  for (const instance of newInstances) {
+    partEngine.buildForInstance(
+      layerId,
+      loopId,
+      loop.definition,
+      instance,
+      loop.mapping,
+      (id, mapping) => audioEngine.createLoopVoice(id, mapping),
+    );
+  }
+}
+
+/** Rebuild the Part for one updated instance. `oldStartBeat` is the key to dispose (differs from instance.startBeat when startBeat changed). */
 export function syncRebuildInstance(
   layers: LayersState,
   layerId: LayerId,
   loopId: LayerLoopId,
-  instanceId: number,
+  oldStartBeat: number,
   instance: LayerLoopInstance,
 ): void {
   loopTimeline.rebuildLoop(layerId, loopId, layers);
-  partEngine.disposeForInstance(layerId, loopId, instanceId);
+  partEngine.disposeForInstance(layerId, loopId, oldStartBeat);
   partEngine.buildForInstance(
     layerId,
     loopId,
-    instanceId,
     layers[layerId].layerLoops[loopId].definition,
     instance,
     layers[layerId].layerLoops[loopId].mapping,
@@ -86,10 +110,10 @@ export function syncDeleteInstance(
   layers: LayersState,
   layerId: LayerId,
   loopId: LayerLoopId,
-  instanceId: number,
+  startBeat: number,
 ): void {
   loopTimeline.rebuildLoop(layerId, loopId, layers);
-  partEngine.disposeForInstance(layerId, loopId, instanceId);
+  partEngine.disposeForInstance(layerId, loopId, startBeat);
 }
 
 /** Update note content for an existing loop without changing placements. */
@@ -123,15 +147,14 @@ interface SyncTrimInstancesParams {
   layers: LayersState;
   affectedTimelineLoops: ReadonlySet<string>;
   clearedLoops: ReadonlyArray<{ layerId: LayerId; loopId: number }>;
-  removedInstanceIds: ReadonlyArray<{
+  removedInstanceBeats: ReadonlyArray<{
     layerId: LayerId;
     loopId: number;
-    instanceId: number;
+    startBeat: number;
   }>;
   rebuiltLast: ReadonlyArray<{
     layerId: LayerId;
     loopId: number;
-    instanceId: number;
     instance: LayerLoopInstance;
   }>;
 }
@@ -144,7 +167,7 @@ export function syncTrimInstancesToComposition({
   layers,
   affectedTimelineLoops,
   clearedLoops,
-  removedInstanceIds,
+  removedInstanceBeats,
   rebuiltLast,
 }: SyncTrimInstancesParams): void {
   for (const key of affectedTimelineLoops) {
@@ -155,19 +178,18 @@ export function syncTrimInstancesToComposition({
   for (const { layerId, loopId } of clearedLoops) {
     partEngine.disposeAllForLoop(layerId, loopId);
   }
-  for (const { layerId, loopId, instanceId } of removedInstanceIds) {
-    partEngine.disposeForInstance(layerId, loopId, instanceId);
+  for (const { layerId, loopId, startBeat } of removedInstanceBeats) {
+    partEngine.disposeForInstance(layerId, loopId, startBeat);
   }
-  for (const { layerId, loopId, instanceId, instance } of rebuiltLast) {
-    const mapping = layers[layerId].layerLoops[loopId].mapping;
-    partEngine.disposeForInstance(layerId, loopId, instanceId);
+  for (const { layerId, loopId, instance } of rebuiltLast) {
+    const loop = layers[layerId].layerLoops[loopId];
+    partEngine.disposeForInstance(layerId, loopId, instance.startBeat);
     partEngine.buildForInstance(
       layerId,
       loopId,
-      instanceId,
-      layers[layerId].layerLoops[loopId].definition,
+      loop.definition,
       instance,
-      mapping,
+      loop.mapping,
       (id, loopMapping) => audioEngine.createLoopVoice(id, loopMapping),
     );
   }
@@ -179,7 +201,6 @@ interface SyncExpandInstancesParams {
   rebuiltLast: ReadonlyArray<{
     layerId: LayerId;
     loopId: number;
-    instanceId: number;
     instance: LayerLoopInstance;
   }>;
 }
@@ -198,16 +219,15 @@ export function syncExpandInstancesToComposition({
     loopTimeline.rebuildLoop(layerId as LayerId, Number(loopIdStr), layers);
   }
 
-  for (const { layerId, loopId, instanceId, instance } of rebuiltLast) {
-    const mapping = layers[layerId].layerLoops[loopId].mapping;
-    partEngine.disposeForInstance(layerId, loopId, instanceId);
+  for (const { layerId, loopId, instance } of rebuiltLast) {
+    const loop = layers[layerId].layerLoops[loopId];
+    partEngine.disposeForInstance(layerId, loopId, instance.startBeat);
     partEngine.buildForInstance(
       layerId,
       loopId,
-      instanceId,
-      layers[layerId].layerLoops[loopId].definition,
+      loop.definition,
       instance,
-      mapping,
+      loop.mapping,
       (id, loopMapping) => audioEngine.createLoopVoice(id, loopMapping),
     );
   }

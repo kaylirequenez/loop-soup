@@ -103,7 +103,7 @@ export interface LayerStoreState {
     loopId: LayerLoopId,
     startBeat: number,
     compositionDims: LoopInstanceCompositionDims,
-    referenceInstanceId?: LoopInstanceId,
+    reference?: LayerLoopInstance[] | null,
   ) => void;
   deleteLoopInstance: (
     layerId: LayerId,
@@ -140,25 +140,22 @@ export interface LayerStoreState {
     value: number | null,
     compositionDims: LoopInstanceCompositionDims,
   ) => void;
-  setLoopInstanceStartBeat: (
+  /** Sets repeatCount on a single instance. Pass null for open-ended (fills to composition end); pass a number to cap at that many repeats (clamped to what fits). */
+  setInstanceRepeatCount: (
     layerId: LayerId,
     loopId: LayerLoopId,
     instanceId: LoopInstanceId,
-    startBeat: number,
+    repeatCount: number | null,
     compositionDims: LoopInstanceCompositionDims,
   ) => void;
-  setLoopInstanceEndBeat: (
+  /**
+   * Applies a pre-validated instance array directly — no re-validation.
+   * The hook computes and finalizes the array before calling this.
+   */
+  commitInstanceEdits: (
     layerId: LayerId,
     loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
-    endBeat: number,
-    compositionDims: LoopInstanceCompositionDims,
-  ) => void;
-  shiftLoopInstanceStartBeat: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    instanceId: LoopInstanceId,
-    newStartBeat: number,
+    instances: LayerLoopInstance[],
   ) => void;
   addNewLoop: (layerId: LayerId) => void;
   deleteLoop: (layerId: LayerId, loopId: LayerLoopId) => void;

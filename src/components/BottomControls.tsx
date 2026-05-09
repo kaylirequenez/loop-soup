@@ -16,6 +16,7 @@ import {
   isRepeatDisabledForUnit,
   maxRepeatEveryForUnit,
   canShiftLoopNotesOctaveBy,
+  isRepeatOff,
 } from "../utils/layerState";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
@@ -42,16 +43,20 @@ export default function BottomControls() {
   const {
     selectedLayerId,
     selectedLoopId,
-    selectedInstanceId,
+    selectedInstanceIds,
     isRecordingLoop,
+    instanceEditState,
     stopRecording,
+    setPendingPlacement,
   } = useLayerEditorStore(
     useShallow((s) => ({
       selectedLayerId: s.selectedLayerId,
       selectedLoopId: s.selectedLoopId,
-      selectedInstanceId: s.selectedInstanceId,
+      selectedInstanceIds: s.selectedInstanceIds,
       isRecordingLoop: s.isRecordingLoop,
+      instanceEditState: s.instanceEditState,
       stopRecording: s.stopRecording,
+      setPendingPlacement: s.setPendingPlacement,
     })),
   );
   const {
@@ -60,6 +65,7 @@ export default function BottomControls() {
     shiftLoopNotesOctave,
     setLoopRepeatUnit,
     setLoopRepeatEvery,
+    setInstanceRepeatCount,
   } = useLayerStore(
     useShallow((s) => ({
       layers: s.layers,
@@ -67,6 +73,7 @@ export default function BottomControls() {
       shiftLoopNotesOctave: s.shiftLoopNotesOctave,
       setLoopRepeatUnit: s.setLoopRepeatUnit,
       setLoopRepeatEvery: s.setLoopRepeatEvery,
+      setInstanceRepeatCount: s.setInstanceRepeatCount,
     })),
   );
 
@@ -94,31 +101,45 @@ export default function BottomControls() {
     selectedLoopId != null
       ? (layers[selectedLayerId].layerLoops[selectedLoopId] ?? null)
       : null;
-  const activeLoop = activeLoopData
-    ? {
-        loop: activeLoopData,
-        instance:
-          selectedInstanceId != null
-            ? (activeLoopData.loopInstances[selectedInstanceId] ?? null)
-            : null,
-      }
-    : null;
-
-  /** Repeat spacing is edited for the whole loop; individual instance placement uses repeatCount elsewhere (future UI). */
-  const repeatControlsEnabled = selectedLoopId != null;
-  const loopEnabled = selectedLoopId != null;
+  const isEditing = instanceEditState != null;
+  const repeatControlsEnabled = selectedLoopId != null && !isEditing;
+  const loopEnabled = selectedLoopId != null && !isEditing;
   const canRemoveLastMeasure = totalMeasures >= 2;
   const canAddMeasure = totalMeasures < maxMeasuresCompositionLimit();
-  const spanBeats = activeLoop?.loop.definition.spanBeats;
-  const repeatUnit = activeLoop?.loop.definition.repeatUnit ?? "measures";
-  const repeatEvery = activeLoop?.loop
-    ? getRepeatEveryForUnit(repeatUnit, activeLoop.loop.definition)
+  const spanBeats = activeLoopData?.definition.spanBeats;
+  const repeatUnit = activeLoopData?.definition.repeatUnit ?? "measures";
+  const repeatEvery = activeLoopData
+    ? getRepeatEveryForUnit(repeatUnit, activeLoopData.definition)
     : null;
 
-  const loopNotes = activeLoop?.loop.definition.notes ?? [];
+  const loopNotes = activeLoopData?.definition.notes ?? [];
   const canTransposeDown =
     loopEnabled && canShiftLoopNotesOctaveBy(loopNotes, -1);
   const canTransposeUp = loopEnabled && canShiftLoopNotesOctaveBy(loopNotes, 1);
+
+  const singleSelectedInstanceId =
+    selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : null;
+  const selectedInstance =
+    singleSelectedInstanceId != null
+      ? (activeLoopData?.loopInstances[singleSelectedInstanceId] ?? null)
+      : null;
+  const isLastInstance =
+    singleSelectedInstanceId != null &&
+    singleSelectedInstanceId ===
+      (activeLoopData?.loopInstances.length ?? 0) - 1;
+  const showRepeatCount =
+    singleSelectedInstanceId != null &&
+    !isEditing &&
+    activeLoopData != null &&
+    !isRepeatOff(activeLoopData.definition);
+  const instanceRepeatsLabel =
+    showRepeatCount && selectedInstance != null
+      ? `repeats: ${
+          selectedInstance.repeatCount == null
+            ? "indefinitely"
+            : selectedInstance.repeatCount
+        }`
+      : null;
 
   const handleStartRecording = () => {
     addNewLoop(selectedLayerId);
@@ -241,7 +262,7 @@ export default function BottomControls() {
                     className={`rep-btn ${repeatUnit === value ? "rep-on" : ""}`}
                     disabled={!repeatControlsEnabled}
                     onClick={() => {
-                      if (repeatControlsEnabled && activeLoop) {
+                      if (repeatControlsEnabled && activeLoopData) {
                         setLoopRepeatUnit(
                           selectedLayerId,
                           selectedLoopId,
@@ -278,7 +299,7 @@ export default function BottomControls() {
                         className={`rep-btn ${repeatEvery === n ? "rep-on" : ""}`}
                         disabled={disabled}
                         onClick={() => {
-                          if (repeatControlsEnabled && activeLoop) {
+                          if (repeatControlsEnabled && activeLoopData) {
                             setLoopRepeatEvery(
                               selectedLayerId,
                               selectedLoopId,
@@ -339,6 +360,54 @@ export default function BottomControls() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+        <div className="sep" />
+        <div className="cluster">
+          <div className="clbl2">instance</div>
+          <div className="ctrls">
+            <button
+              type="button"
+              className="btn"
+              disabled={!loopEnabled}
+              onClick={() => {
+                if (selectedLoopId == null) return;
+                setPendingPlacement({
+                  layerId: selectedLayerId,
+                  loopId: selectedLoopId,
+                  instances: [
+                    { startBeat: 0, repeatCount: null, endBeat: null },
+                  ],
+                });
+              }}
+            >
+              + instance
+            </button>
+            {showRepeatCount &&
+              instanceRepeatsLabel != null &&
+              (isLastInstance ? (
+                <button
+                  type="button"
+                  className={`btn ${selectedInstance!.repeatCount === null ? "btn-on" : ""}`}
+                  onClick={() =>
+                    setInstanceRepeatCount(
+                      selectedLayerId,
+                      selectedLoopId!,
+                      singleSelectedInstanceId!,
+                      selectedInstance!.repeatCount === null
+                        ? Number.MAX_SAFE_INTEGER
+                        : null,
+                      compositionDims,
+                    )
+                  }
+                >
+                  {instanceRepeatsLabel}
+                </button>
+              ) : (
+                <button type="button" className="btn" disabled>
+                  {instanceRepeatsLabel}
+                </button>
+              ))}
           </div>
         </div>
       </div>

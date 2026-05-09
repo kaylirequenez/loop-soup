@@ -25,18 +25,18 @@ type VisibleNote = RawRollNote &
   TimelineNoteFractionRect & { rowIndex: number };
 
 function CombinedRollNote({ item }: { item: VisibleNote }) {
-  const { selectedLayerId, selectedLoopId, selectedInstanceId } =
+  const { selectedLayerId, selectedLoopId, selectedInstanceIds } =
     useLayerEditorStore(
       useShallow((s) => ({
         selectedLayerId: s.selectedLayerId,
         selectedLoopId: s.selectedLoopId,
-        selectedInstanceId: s.selectedInstanceId,
+        selectedInstanceIds: s.selectedInstanceIds,
       })),
     );
   const hlClass = timelineNoteSelectionHighlightClasses({
     selectedLoopId,
     selectedLayerId,
-    selectedInstanceId,
+    selectedInstanceIds,
     noteLayerId: item.layerId,
     noteLoopIndex: item.loopIndex,
     noteInstanceIndex: item.instanceIndex,
@@ -47,7 +47,7 @@ function CombinedRollNote({ item }: { item: VisibleNote }) {
     item.layerId === selectedLayerId &&
     item.loopIndex === selectedLoopId;
   const isInstancePressed =
-    showOctaveBadge && selectedInstanceId === item.instanceIndex;
+    showOctaveBadge && selectedInstanceIds.includes(item.instanceIndex);
   const cls = [
     "midi-roll-timeline-note",
     "mnote",
@@ -120,13 +120,13 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
   const {
     selectedLayerId,
     selectedLoopId,
-    selectedInstanceId,
+    selectedInstanceIds,
     toggleInstanceSelection,
   } = useLayerEditorStore(
     useShallow((s) => ({
       selectedLayerId: s.selectedLayerId,
       selectedLoopId: s.selectedLoopId,
-      selectedInstanceId: s.selectedInstanceId,
+      selectedInstanceIds: s.selectedInstanceIds,
       toggleInstanceSelection: s.toggleInstanceSelection,
     })),
   );
@@ -321,7 +321,7 @@ export function CombinedRoll({ rollSlot, notes }: CombinedRollProps) {
                   (n) =>
                     n.layerId === selectedLayerId &&
                     n.loopIndex === selectedLoopId &&
-                    n.instanceIndex === selectedInstanceId,
+                    selectedInstanceIds.includes(n.instanceIndex),
                 );
                 const target = pool[(currentIdx + 1) % pool.length]!;
                 toggleInstanceSelection(

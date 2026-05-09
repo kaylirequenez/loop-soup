@@ -1037,6 +1037,10 @@ body.drag-selection-lock * {
   border-color: rgba(0, 219, 231, 0.35);
   box-shadow: 0 0 0 0.5px rgba(0, 219, 231, 0.2);
 }
+.ctrack--editing {
+  border-color: rgba(255, 60, 100, 0.65);
+  box-shadow: 0 0 0 0.5px rgba(255, 60, 100, 0.3);
+}
 .comp-measure-divider {
   position: absolute;
   top: 0;
@@ -1410,6 +1414,7 @@ body.drag-selection-lock * {
     transparent 3px,
     transparent 11px
   );
+  box-shadow: inset -1.5px 0 0 rgba(0, 0, 0, 0.55);
 }
 .comp-instance-span.mnote-a {
   color: var(--layer-a);
@@ -1426,6 +1431,51 @@ body.drag-selection-lock * {
 .comp-instance-span.mnote-e {
   color: var(--layer-e);
 }
+
+/* Edit-mode ruler */
+.comp-ruler-track--edit {
+  cursor: pointer;
+}
+.comp-ruler-edit-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(0, 219, 231, 0.7);
+  z-index: 3;
+  pointer-events: none;
+  border-radius: 1px;
+}
+.comp-ruler-edit-tick--shift {
+  background: rgba(0, 219, 231, 0.7);
+}
+.comp-ruler-edit-tick--start {
+  background: rgba(100, 220, 100, 0.8);
+}
+.comp-ruler-edit-tick--end {
+  background: rgba(255, 160, 60, 0.8);
+}
+
+/* Ghost spans (placement + edit) */
+.comp-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(60, 50, 85, 0.65);
+  border-radius: 2px;
+}
+.comp-ghost-note {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  background: rgba(200, 190, 220, 0.6);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 /* Wide hit target; visible line via ::after — only this moves the now bar when dragged */
 .mroll-ph {
   position: absolute;

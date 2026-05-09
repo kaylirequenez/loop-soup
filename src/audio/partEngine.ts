@@ -80,8 +80,8 @@ class PartEngine {
   private loopVoices = new Map<string, LoopVoice>();
   private loopVoiceRefs = new Map<string, number>();
 
-  private key(layerId: LayerId, loopId: number, instanceId: number): string {
-    return `${layerId}:${loopId}:${instanceId}`;
+  private key(layerId: LayerId, loopId: number, startBeat: number): string {
+    return `${layerId}:${loopId}:${startBeat}`;
   }
 
   private loopKey(layerId: LayerId, loopId: number): string {
@@ -135,20 +135,19 @@ class PartEngine {
     }
   }
 
-  /** Dispose the Part for one loop instance id. Safe no-op if no Part exists. */
+  /** Dispose the Part for one instance by its startBeat. Safe no-op if no Part exists. */
   disposeForInstance(
     layerId: LayerId,
     loopId: number,
-    instanceId: number,
+    startBeat: number,
   ): void {
-    this.disposeByKey(this.key(layerId, loopId, instanceId));
+    this.disposeByKey(this.key(layerId, loopId, startBeat));
   }
 
-  /** Build (or replace) the Part for a single instance, keyed by stable instance index. */
+  /** Build (or replace) the Part for a single instance, keyed by instance startBeat. */
   buildForInstance(
     layerId: LayerId,
     loopId: number,
-    instanceId: number,
     definition: LoopDefinition,
     instance: LayerLoopInstance,
     mapping: SoundMapping,
@@ -157,7 +156,7 @@ class PartEngine {
       mapping: SoundMapping,
     ) => LoopVoice | null,
   ): void {
-    const k = this.key(layerId, loopId, instanceId);
+    const k = this.key(layerId, loopId, instance.startBeat);
     this.disposeByKey(k);
     const loopVoiceKey = this.loopKey(layerId, loopId);
     const instrument = this.ensureLoopVoice(
@@ -212,7 +211,7 @@ class PartEngine {
       const part = buildPart(loop.definition, instrument, instance);
       if (part) {
         this.retainLoopVoice(loopVoiceKey);
-        this.parts.set(this.key(layerId, loopId, instanceId), {
+        this.parts.set(this.key(layerId, loopId, instance.startBeat), {
           part,
           loopVoiceKey,
         });
