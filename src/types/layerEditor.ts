@@ -38,4 +38,6 @@ export interface LayerEditorState {
   pendingPlacement: PendingPlacement | null;
   /** Active keyboard-driven instance edit session; non-null only while ≥1 instance is selected. */
   instanceEditState: InstanceEditState | null;
+  /** Which knob page is currently visible on the layer card (0-indexed). */
+  selectedKnobPage: number;
 }

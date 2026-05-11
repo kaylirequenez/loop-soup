@@ -1,6 +1,17 @@
-import type { LayerId, LayersState } from "../../types/layer";
-import { SOUND_CATALOG, KNOB_LABELS } from "../../audio/sounds";
-import type { SoundId } from "../../audio/types";
+import type { LayerId, LayersState, LoopNote } from "../../types/layer";
+import {
+  KNOB_SPECS,
+  MIX_KNOB_SPECS,
+} from "../../sound/soundSpecs";
+import { mappingToLoopSound } from "../../sound/soundMapping";
+import type {
+  LayerDefaultSoundState,
+  LayerMixState,
+  LayerVolumeState,
+  LoopSoundStateByKey,
+  SoundMapping,
+  SoundId,
+} from "../../types/sound";
 import type {
   MidiLoopRollPlacementMap,
   MidiLayerPlacement,
@@ -21,32 +32,54 @@ export const DEFAULT_MIDI_LAYER_PLACEMENT: MidiLayerPlacement = {
   E: "both",
 };
 
-const DEFAULT_LAYER_KNOB_VALUES = {
-  attack: 0,
-  decay: 0.3,
-  sustain: 0.5,
-  release: 0.4,
-} as const;
-
-function defaultKnobs() {
+function defaultMapping(soundId: SoundId): SoundMapping {
   return {
-    attack: {
-      value: DEFAULT_LAYER_KNOB_VALUES.attack,
-      label: KNOB_LABELS.attack,
+    soundId,
+    mix: {
+      volume: 0.7,
+      pan: 0.5,
     },
-    decay: { value: DEFAULT_LAYER_KNOB_VALUES.decay, label: KNOB_LABELS.decay },
-    sustain: {
-      value: DEFAULT_LAYER_KNOB_VALUES.sustain,
-      label: KNOB_LABELS.sustain,
-    },
-    release: {
-      value: DEFAULT_LAYER_KNOB_VALUES.release,
-      label: KNOB_LABELS.release,
+    knobsByEffect: {
+      attack: { value: 0, label: KNOB_SPECS.attack.label },
+      decay: { value: 0.3, label: KNOB_SPECS.decay.label },
+      sustain: { value: 0.5, label: KNOB_SPECS.sustain.label },
+      release: { value: 0.4, label: KNOB_SPECS.release.label },
+      filterCutoff: { value: 1, label: KNOB_SPECS.filterCutoff.label },
+      filterResonance: { value: 0, label: KNOB_SPECS.filterResonance.label },
+      drive: { value: 0, label: KNOB_SPECS.drive.label },
+      driveWet: { value: 0, label: KNOB_SPECS.driveWet.label },
+      reverbSend: { value: 0.12, label: KNOB_SPECS.reverbSend.label },
+      delaySend: { value: 0.08, label: KNOB_SPECS.delaySend.label },
+      chorusDepth: { value: 0, label: KNOB_SPECS.chorusDepth.label },
+      chorusRate: { value: 0, label: KNOB_SPECS.chorusRate.label },
+      phaserDepth: { value: 0, label: KNOB_SPECS.phaserDepth.label },
+      phaserRate: { value: 0, label: KNOB_SPECS.phaserRate.label },
+      vibratoDepth: { value: 0, label: KNOB_SPECS.vibratoDepth.label },
+      vibratoRate: { value: 0, label: KNOB_SPECS.vibratoRate.label },
+      autoFilterRate: { value: 0, label: KNOB_SPECS.autoFilterRate.label },
+      autoFilterDepth: { value: 0, label: KNOB_SPECS.autoFilterDepth.label },
+      tremoloDepth: { value: 0, label: KNOB_SPECS.tremoloDepth.label },
+      tremoloRate: { value: 0, label: KNOB_SPECS.tremoloRate.label },
+      bitCrusherBits: { value: 0, label: KNOB_SPECS.bitCrusherBits.label },
+      pitchDriftRange: { value: 0, label: KNOB_SPECS.pitchDriftRange.label },
+      portamento: { value: 0, label: KNOB_SPECS.portamento.label },
     },
   };
 }
 
-const DEFAULT_KNOB_ORDER = ["attack", "decay", "sustain", "release"] as const;
+function defaultMixKnobs() {
+  return {
+    eqLow: { value: 0.5, label: MIX_KNOB_SPECS.eqLow.label },
+    eqMid: { value: 0.5, label: MIX_KNOB_SPECS.eqMid.label },
+    eqHigh: { value: 0.5, label: MIX_KNOB_SPECS.eqHigh.label },
+    compThreshold: { value: 1.0, label: MIX_KNOB_SPECS.compThreshold.label },
+    compRatio: { value: 0.0, label: MIX_KNOB_SPECS.compRatio.label },
+    compAttack: { value: 0.2, label: MIX_KNOB_SPECS.compAttack.label },
+    compRelease: { value: 0.3, label: MIX_KNOB_SPECS.compRelease.label },
+  };
+}
+
+export const DEFAULT_PAGE_ORDER = ["Filter", "Send", "Synth"];
 
 const REPEAT_DEFAULTS = {
   repeatUnit: "measures" as const,
@@ -66,185 +99,140 @@ const DEFAULT_SOUNDS: Record<LayerId, SoundId> = {
   E: "square",
 };
 
-export const DEFAULT_LAYERS = {
-  A: {
+function defaultLayer(overrides: {
+  role: string;
+  loops: { spanBeats: number; notes: LoopNote[]; startBeat: number }[];
+}) {
+  return {
+    role: overrides.role,
+    layerLoops: overrides.loops.map(({ spanBeats, notes, startBeat }) => ({
+      definition: { spanBeats, notes, ...REPEAT_DEFAULTS },
+      pageOrder: [...DEFAULT_PAGE_ORDER],
+      loopInstances: [defaultInstance(startBeat, spanBeats)],
+    })),
+  };
+}
+
+export const DEFAULT_LAYERS: LayersState = {
+  A: defaultLayer({
     role: "hook",
-    volume: 0.7,
-    defaultMapping: {
-      soundId: DEFAULT_SOUNDS.A,
-      knobsByEffect: defaultKnobs(),
-    },
-    knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: [
+    loops: [
       {
-        definition: {
-          spanBeats: 1,
-          notes: [
-            {
-              pitchClass: 4,
-              octave: 4,
-              beatIndex: 0,
-              startInBeat: 0,
-              lengthInBeat: 0.5,
-            },
-          ],
-          ...REPEAT_DEFAULTS,
-        },
-        mapping: {
-          soundId: DEFAULT_SOUNDS.A,
-          knobsByEffect: defaultKnobs(),
-        },
-        knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: [defaultInstance(0, 1)],
+        spanBeats: 1,
+        startBeat: 0,
+        notes: [
+          {
+            pitchClass: 4,
+            octave: 4,
+            beatIndex: 0,
+            startInBeat: 0,
+            lengthInBeat: 0.5,
+          },
+        ],
       },
     ],
-  },
-  B: {
+  }),
+  B: defaultLayer({
     role: "bass",
-    volume: 0.7,
-    defaultMapping: {
-      soundId: DEFAULT_SOUNDS.B,
-      knobsByEffect: defaultKnobs(),
-    },
-    knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: [
+    loops: [
       {
-        definition: {
-          spanBeats: 2,
-          notes: [
-            {
-              pitchClass: 0,
-              octave: 1,
-              beatIndex: 0,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-            {
-              pitchClass: 10,
-              octave: 1,
-              beatIndex: 1,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-          ],
-          ...REPEAT_DEFAULTS,
-        },
-        mapping: {
-          soundId: DEFAULT_SOUNDS.B,
-          knobsByEffect: defaultKnobs(),
-        },
-        knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: [defaultInstance(0, 2)],
+        spanBeats: 2,
+        startBeat: 0,
+        notes: [
+          {
+            pitchClass: 0,
+            octave: 1,
+            beatIndex: 0,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+          {
+            pitchClass: 10,
+            octave: 1,
+            beatIndex: 1,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+        ],
       },
     ],
-  },
-  C: {
+  }),
+  C: defaultLayer({
     role: "melody",
-    volume: 0.7,
-    defaultMapping: {
-      soundId: DEFAULT_SOUNDS.C,
-      knobsByEffect: defaultKnobs(),
-    },
-    knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: [
+    loops: [
       {
-        definition: {
-          spanBeats: 3,
-          notes: [
-            {
-              pitchClass: 4,
-              octave: 4,
-              beatIndex: 0,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-            {
-              pitchClass: 6,
-              octave: 4,
-              beatIndex: 1,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-            {
-              pitchClass: 7,
-              octave: 4,
-              beatIndex: 2,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-          ],
-          ...REPEAT_DEFAULTS,
-        },
-        mapping: {
-          soundId: DEFAULT_SOUNDS.C,
-          knobsByEffect: defaultKnobs(),
-        },
-        knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: [defaultInstance(0, 3)],
+        spanBeats: 3,
+        startBeat: 0,
+        notes: [
+          {
+            pitchClass: 4,
+            octave: 4,
+            beatIndex: 0,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+          {
+            pitchClass: 6,
+            octave: 4,
+            beatIndex: 1,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+          {
+            pitchClass: 7,
+            octave: 4,
+            beatIndex: 2,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+        ],
       },
     ],
-  },
-  D: {
+  }),
+  D: defaultLayer({
     role: "harmony",
-    volume: 0.7,
-    defaultMapping: {
-      soundId: DEFAULT_SOUNDS.D,
-      knobsByEffect: defaultKnobs(),
-    },
-    knobOrder: [...DEFAULT_KNOB_ORDER],
-    layerLoops: [
+    loops: [
       {
-        definition: {
-          spanBeats: 4,
-          notes: [
-            {
-              pitchClass: 2,
-              octave: 2,
-              beatIndex: 0,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-            {
-              pitchClass: 4,
-              octave: 2,
-              beatIndex: 1,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-            {
-              pitchClass: 1,
-              octave: 2,
-              beatIndex: 2,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-            {
-              pitchClass: 3,
-              octave: 2,
-              beatIndex: 3,
-              startInBeat: 0,
-              lengthInBeat: 1,
-            },
-          ],
-          ...REPEAT_DEFAULTS,
-        },
-        mapping: {
-          soundId: DEFAULT_SOUNDS.D,
-          knobsByEffect: defaultKnobs(),
-        },
-        knobOrder: [...DEFAULT_KNOB_ORDER],
-        loopInstances: [defaultInstance(0, 4)],
+        spanBeats: 4,
+        startBeat: 0,
+        notes: [
+          {
+            pitchClass: 2,
+            octave: 2,
+            beatIndex: 0,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+          {
+            pitchClass: 4,
+            octave: 2,
+            beatIndex: 1,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+          {
+            pitchClass: 1,
+            octave: 2,
+            beatIndex: 2,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+          {
+            pitchClass: 3,
+            octave: 2,
+            beatIndex: 3,
+            startInBeat: 0,
+            lengthInBeat: 1,
+          },
+        ],
       },
     ],
-  },
+  }),
   E: {
-    role: "drums",
-    volume: 0.7,
-    defaultMapping: {
-      soundId: DEFAULT_SOUNDS.E,
-      knobsByEffect: defaultKnobs(),
-    },
-    knobOrder: [...DEFAULT_KNOB_ORDER],
+    ...defaultLayer({
+      role: "drums",
+      loops: [],
+    }),
     layerLoops: [
       {
         definition: {
@@ -267,11 +255,7 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: {
-          soundId: DEFAULT_SOUNDS.E,
-          knobsByEffect: defaultKnobs(),
-        },
-        knobOrder: [...DEFAULT_KNOB_ORDER],
+        pageOrder: [...DEFAULT_PAGE_ORDER],
         loopInstances: [defaultInstance(0, 2)],
       },
       {
@@ -295,13 +279,42 @@ export const DEFAULT_LAYERS = {
           ],
           ...REPEAT_DEFAULTS,
         },
-        mapping: {
-          soundId: DEFAULT_SOUNDS.E,
-          knobsByEffect: defaultKnobs(),
-        },
-        knobOrder: [...DEFAULT_KNOB_ORDER],
+        pageOrder: [...DEFAULT_PAGE_ORDER],
         loopInstances: [defaultInstance(4, 2)],
       },
     ],
   },
-} satisfies LayersState;
+};
+
+export const DEFAULT_LAYER_VOLUMES: LayerVolumeState = {
+  A: 0.7,
+  B: 0.7,
+  C: 0.7,
+  D: 0.7,
+  E: 0.7,
+};
+
+export const DEFAULT_LAYER_MIX_KNOBS: LayerMixState = {
+  A: defaultMixKnobs(),
+  B: defaultMixKnobs(),
+  C: defaultMixKnobs(),
+  D: defaultMixKnobs(),
+  E: defaultMixKnobs(),
+};
+
+export const DEFAULT_LAYER_SOUND_DEFAULTS: LayerDefaultSoundState = {
+  A: mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.A)),
+  B: mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.B)),
+  C: mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.C)),
+  D: mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.D)),
+  E: mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.E)),
+};
+
+export const DEFAULT_LOOP_SOUNDS: LoopSoundStateByKey = {
+  "A:0": mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.A)),
+  "B:0": mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.B)),
+  "C:0": mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.C)),
+  "D:0": mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.D)),
+  "E:0": mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.E)),
+  "E:1": mappingToLoopSound(defaultMapping(DEFAULT_SOUNDS.E)),
+};

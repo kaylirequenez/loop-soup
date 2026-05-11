@@ -15,14 +15,13 @@ import { commitIntegerDraft, inputKeyHandler } from "./userInput";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
+import { useMasterBusStore } from "../store/masterBusStore";
+import { usePointerDrag } from "../hooks/usePointerDrag";
 
 const MIN_BPM = 40;
 const MAX_BPM = 240;
-interface TopBarProps {
-  onOpenHook: () => void;
-}
 
-export default function TopBar({ onOpenHook }: TopBarProps) {
+export default function TopBar() {
   const {
     bpm,
     musicalKey,
@@ -58,6 +57,20 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
 
   const keyName = musicalKeyToString(musicalKey);
   const meterLabel = meterToString(meter);
+
+  const { masterVolume, setMasterVolume } = useMasterBusStore();
+  const masterPercent = Math.round(masterVolume * 100);
+
+  const handleMasterFaderPointerDown = usePointerDrag<HTMLDivElement>({
+    onStart: (el, event) => {
+      const pct = (event.clientX - el.getBoundingClientRect().left) / el.getBoundingClientRect().width;
+      setMasterVolume(pct);
+    },
+    onMove: (el, e) => {
+      const pct = (e.clientX - el.getBoundingClientRect().left) / el.getBoundingClientRect().width;
+      setMasterVolume(pct);
+    },
+  });
 
   const [bpmDraft, setBpmDraft] = useState(String(bpm));
   const [keyDraft, setKeyDraft] = useState(keyName);
@@ -246,9 +259,16 @@ export default function TopBar({ onOpenHook }: TopBarProps) {
           <div className="stat-label">octave</div>
         </div>
       </div>
-      <button className="hook-btn" onClick={onOpenHook}>
-        + make hook
-      </button>
+      <div className="master-fdr-wrap">
+        <span className="master-fdr-label">master</span>
+        <div
+          className="fdr master-fdr"
+          onPointerDown={handleMasterFaderPointerDown}
+        >
+          <div className="fdr-fill" style={{ width: `${masterPercent}%`, background: "var(--on-surf-var)" }} />
+          <div className="fdr-thumb" style={{ left: `${masterPercent}%` }} />
+        </div>
+      </div>
       <div className="top-right">
         <span className="loop-num">{`measure ${nowMeasure} of ${totalMeasures}`}</span>
         <div className={`live-pill ${isPlaying ? "live-pill-on" : ""}`}>

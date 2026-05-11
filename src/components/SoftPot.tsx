@@ -8,14 +8,17 @@ import {
   LOOP_NOTE_MIDI_MIN,
   softpotChromoRows,
 } from "../utils/pitch";
-import type { LayerId, LayerLoopId, SoundMapping } from "../types/layer";
+import type { LayerId, LayerLoopId } from "../types/layer";
+import type { SoundMapping } from "../types/sound";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerStore } from "../store/layerStore";
+import { useSoundStore } from "../store/soundStore";
 import { useTransportStore } from "../store/transportStore";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 import { audioEngine } from "../audio/audioEngine";
 import { midiToFrequency } from "../audio/toneUnits";
 import { getNowbarBeat } from "../audio/transportController";
+import { getSoundCategory } from "../sound/soundSpecs";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
 const SOFTPOT_STEPS = 24;
@@ -51,7 +54,6 @@ export default function SoftPot() {
       musicalKey: s.key,
     })),
   );
-  const isDrums = selectedLayer === "E";
   const [softpotPosition, setSoftpotPosition] = useState(
     DEFAULT_SOFTPOT_POSITION,
   );
@@ -78,6 +80,7 @@ export default function SoftPot() {
 
   const noteStartBeatRef = useRef<number | null>(null);
   const capturedMidiRef = useRef<number | null>(null);
+  const initialPitchOffsetRef = useRef<number>(0);
   const recordingTargetRef = useRef<{
     layerId: LayerId;
     loopId: LayerLoopId;
@@ -86,17 +89,15 @@ export default function SoftPot() {
   const lastPreviewRowRef = useRef<number | null>(null);
 
   function currentPreviewMapping(layerId: LayerId): SoundMapping {
-    const layers = useLayerStore.getState().layers;
     const editor = useLayerEditorStore.getState();
-    const layer = layers[layerId];
     const selectedLoopId = editor.selectedLayerId === layerId ? editor.selectedLoopId : null;
     if (selectedLoopId != null) {
-      return layer.layerLoops[selectedLoopId].mapping;
+      return useSoundStore.getState().getLoopMapping(layerId, selectedLoopId);
     }
-    return layer.defaultMapping;
+    return useSoundStore.getState().getLayerDefaultMapping(layerId);
   }
 
-  const captureNoteStart = (midi: number) => {
+  const captureNoteStart = (midi: number, useContinuousPitch = false) => {
     if (isRecordingLoop && useTransportStore.getState().isPlaying) {
       const editor = useLayerEditorStore.getState();
       const loopId = editor.selectedLoopId;
@@ -109,12 +110,23 @@ export default function SoftPot() {
         layerId: editor.selectedLayerId,
         loopId,
       };
+      let pitchOffset: number | undefined;
+      if (useContinuousPitch) {
+        const mapping = currentPreviewMapping(editor.selectedLayerId);
+        const driftRange = mapping.knobsByEffect.pitchDriftRange?.value ?? 0;
+        const raw = midi - roundedMidi;
+        if (driftRange > 0 && Math.abs(raw) > 0.001) {
+          pitchOffset = raw * driftRange;
+        }
+      }
+      initialPitchOffsetRef.current = pitchOffset ?? 0;
       useLayerStore.getState().addLoopNote(
         editor.selectedLayerId,
         loopId,
         roundedMidi % 12,
         Math.floor(roundedMidi / 12) - 1,
         startBeat,
+        pitchOffset,
       );
     }
   };
@@ -158,7 +170,13 @@ export default function SoftPot() {
     const mapping = currentPreviewMapping(selectedLayer);
     setGestureActive(true);
     document.body.classList.add(DRAG_SELECTION_CLASS);
-    audioEngine.beginPreviewNote(selectedLayer, mapping, freqHz);
+    if (!audioEngine.isReady) {
+      audioEngine.init().then(() => {
+        audioEngine.beginPreviewNote(selectedLayer, mapping, freqHz);
+      });
+    } else {
+      audioEngine.beginPreviewNote(selectedLayer, mapping, freqHz);
+    }
   };
 
   const endGesture = () => {
@@ -190,12 +208,58 @@ export default function SoftPot() {
         allowedMaxPosition,
       );
       const midi = topMidi - (relative * SOFTPOT_STEPS - 0.5);
+      lastPreviewRowRef.current = clamp(rowIndexFromPosition(relative), allowedMinRow, allowedMaxRow);
       updateStripFromPointer(element, event.clientY);
       beginGesture(midiToFrequency(midi));
-      captureNoteStart(midi);
+      captureNoteStart(midi, true);
     },
     onMove: (element, moveEvent) => {
       updateStripFromPointer(element, moveEvent.clientY);
+      const rect = element.getBoundingClientRect();
+      if (rect.height <= 0) return;
+      const relative = clamp(
+        (moveEvent.clientY - rect.top) / rect.height,
+        allowedMinPosition,
+        allowedMaxPosition,
+      );
+      const currentMidi = topMidi - (relative * SOFTPOT_STEPS - 0.5);
+
+      // Audio preview always follows current position, regardless of recording state.
+      const previewMapping = currentPreviewMapping(selectedLayer);
+      const category = getSoundCategory(previewMapping.soundId);
+      const newRow = rowIndexFromPosition(relative);
+      const clampedRow = clamp(newRow, allowedMinRow, allowedMaxRow);
+      if (category !== "oscillator" && clampedRow !== lastPreviewRowRef.current) {
+        lastPreviewRowRef.current = clampedRow;
+        void audioEngine.updatePreviewNote(selectedLayer, previewMapping, midiToFrequency(chromoRows[clampedRow].midi));
+      } else {
+        audioEngine.slidePreviewNote(selectedLayer, midiToFrequency(currentMidi));
+      }
+
+      // Recording: capture pitch movement into the loop.
+      const target = recordingTargetRef.current;
+      if (target && noteStartBeatRef.current !== null && capturedMidiRef.current !== null) {
+        if (category === "oscillator") {
+          // Record actual pitch offset as a curve point so playback glides with the drag.
+          const offset = currentMidi - capturedMidiRef.current;
+          const beatOffset = getNowbarBeat() - noteStartBeatRef.current;
+          if (beatOffset > 0) {
+            useLayerStore.getState().appendLoopNotePitchPoint(
+              target.layerId,
+              target.loopId,
+              beatOffset,
+              offset,
+            );
+          }
+        } else {
+          // Sampler/player: end current note and start a new one on each semitone crossing.
+          const rowMidi = chromoRows[clampedRow].midi;
+          if (rowMidi !== capturedMidiRef.current) {
+            commitNote();
+            captureNoteStart(rowMidi);
+          }
+        }
+      }
     },
     onEnd: () => endGesture(),
   });
@@ -215,11 +279,17 @@ export default function SoftPot() {
       const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
       if (clampedRow !== lastPreviewRowRef.current) {
         lastPreviewRowRef.current = clampedRow;
-        audioEngine.updatePreviewNote(
+        void audioEngine.updatePreviewNote(
           selectedLayer,
           currentPreviewMapping(selectedLayer),
           midiToFrequency(chromoRows[clampedRow].midi),
         );
+        // During recording: commit the current note and start a new one at the new pitch.
+        const wasRecording = noteStartBeatRef.current !== null;
+        if (wasRecording) {
+          commitNote();
+          captureNoteStart(chromoRows[clampedRow].midi);
+        }
       }
     },
     onEnd: () => endGesture(),
@@ -237,37 +307,29 @@ export default function SoftPot() {
             style={{ top: `${softpotPosition * 100}%` }}
           />
         </div>
-        {!isDrums ? (
-          <div
-            className="note-col note-col--interactive"
-            onPointerDown={handleNoteColPointerDown}
-          >
-            {chromoRows.map((row) => {
-              const isActiveRow = gestureActive && row.index === activeIndex;
-              const rowAllowed = isMidiInLoopNoteRange(row.midi);
-              const cls = `nb ${row.inKey ? "nb-s" : "nb-c"} ${row.isRoot ? "nb-o" : ""} ${isActiveRow ? "nb-a" : ""} ${rowAllowed ? "" : "nb-r"}`;
-              return (
-                <div
-                  className={cls}
-                  key={row.index}
-                  title={
-                    rowAllowed
-                      ? undefined
-                      : `MIDI ${row.midi} is outside allowed ${LOOP_NOTE_MIDI_MIN}-${LOOP_NOTE_MIDI_MAX}`
-                  }
-                >
-                  {row.label}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="note-col drum-col">
-            <div className="drum-zone drum-hihat">hihat</div>
-            <div className="drum-zone drum-snare">snare</div>
-            <div className="drum-zone drum-kick">kick</div>
-          </div>
-        )}
+        <div
+          className="note-col note-col--interactive"
+          onPointerDown={handleNoteColPointerDown}
+        >
+          {chromoRows.map((row) => {
+            const isActiveRow = gestureActive && row.index === activeIndex;
+            const rowAllowed = isMidiInLoopNoteRange(row.midi);
+            const cls = `nb ${row.inKey ? "nb-s" : "nb-c"} ${row.isRoot ? "nb-o" : ""} ${isActiveRow ? "nb-a" : ""} ${rowAllowed ? "" : "nb-r"}`;
+            return (
+              <div
+                className={cls}
+                key={row.index}
+                title={
+                  rowAllowed
+                    ? undefined
+                    : `MIDI ${row.midi} is outside allowed ${LOOP_NOTE_MIDI_MIN}-${LOOP_NOTE_MIDI_MAX}`
+                }
+              >
+                {row.label}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -1,11 +1,11 @@
 import { audioEngine } from "./audioEngine";
 import { partEngine } from "./partEngine";
+import { useSoundStore } from "../store/soundStore";
 import type {
   LayerId,
   LayerLoopId,
   LayerLoopInstance,
   LayersState,
-  LoopDefinition,
 } from "../types/layer";
 import { loopTimeline } from "../utils/loopTimeline";
 
@@ -20,6 +20,7 @@ export function syncTimelineLoop(
     layerId,
     loopId,
     layers[layerId].layerLoops[loopId],
+    useSoundStore.getState().getLoopMapping(layerId, loopId),
     (id, mapping) => audioEngine.createLoopVoice(id, mapping),
   );
 }
@@ -35,7 +36,7 @@ export function syncLoopMapping(
   partEngine.updateLoopSynthMapping(
     layerId,
     loopId,
-    loop.mapping,
+    useSoundStore.getState().getLoopMapping(layerId, loopId),
   );
 }
 
@@ -54,7 +55,7 @@ export function syncAddInstances(
       loopId,
       loop.definition,
       instance,
-      loop.mapping,
+      useSoundStore.getState().getLoopMapping(layerId, loopId),
       (id, mapping) => audioEngine.createLoopVoice(id, mapping),
     );
   }
@@ -79,7 +80,7 @@ export function syncShiftInstances(
       loopId,
       loop.definition,
       instance,
-      loop.mapping,
+      useSoundStore.getState().getLoopMapping(layerId, loopId),
       (id, mapping) => audioEngine.createLoopVoice(id, mapping),
     );
   }
@@ -100,7 +101,7 @@ export function syncRebuildInstance(
     loopId,
     layers[layerId].layerLoops[loopId].definition,
     instance,
-    layers[layerId].layerLoops[loopId].mapping,
+    useSoundStore.getState().getLoopMapping(layerId, loopId),
     (id, mapping) => audioEngine.createLoopVoice(id, mapping),
   );
 }
@@ -189,7 +190,7 @@ export function syncTrimInstancesToComposition({
       loopId,
       loop.definition,
       instance,
-      loop.mapping,
+      useSoundStore.getState().getLoopMapping(layerId, loopId),
       (id, loopMapping) => audioEngine.createLoopVoice(id, loopMapping),
     );
   }
@@ -227,7 +228,7 @@ export function syncExpandInstancesToComposition({
       loopId,
       loop.definition,
       instance,
-      loop.mapping,
+      useSoundStore.getState().getLoopMapping(layerId, loopId),
       (id, loopMapping) => audioEngine.createLoopVoice(id, loopMapping),
     );
   }

@@ -5,6 +5,7 @@ import MidiMeasureNav from "./midi-settings/MidiMeasureNav";
 import MidiMenu from "./midi-settings/MidiMenu";
 import MidiRoll from "./MidiRoll";
 import SoundPicker from "./SoundPicker";
+import EffectsPanel from "./EffectsPanel";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import type { AppView } from "../types/app";
@@ -24,7 +25,7 @@ function LayerPane() {
 export default function WorkspacePanel() {
   const [currentView, setCurrentView] = useState<AppView>("layers");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [sampleSoundOn, setSampleSoundOn] = useState(true);
+  const [effectsOpen, setEffectsOpen] = useState(false);
   const { selectedLayerId } = useLayerEditorStore(
     useShallow((s) => ({
       selectedLayerId: s.selectedLayerId,
@@ -62,8 +63,14 @@ export default function WorkspacePanel() {
         >
           {showMidi && <MidiMenu />}
           <button
+            className={`sounds-toggle ${effectsOpen ? "sounds-toggle-on" : ""}`}
+            onClick={() => { setEffectsOpen((v) => !v); setPickerOpen(false); }}
+          >
+            {effectsOpen ? "effects ✕" : "effects ▸"}
+          </button>
+          <button
             className={`sounds-toggle ${pickerOpen ? "sounds-toggle-on" : ""}`}
-            onClick={() => setPickerOpen((v) => !v)}
+            onClick={() => { setPickerOpen((v) => !v); setEffectsOpen(false); }}
           >
             {pickerOpen ? "sounds ✕" : "sounds ▸"}
           </button>
@@ -89,12 +96,8 @@ export default function WorkspacePanel() {
             <MidiRoll />
           </div>
         )}
-        <SoundPicker
-          selectedLayer={selectedLayerId}
-          open={pickerOpen}
-          sampleSoundOn={sampleSoundOn}
-          onToggleSample={() => setSampleSoundOn((v) => !v)}
-        />
+        <EffectsPanel selectedLayer={selectedLayerId} open={effectsOpen} />
+        <SoundPicker selectedLayer={selectedLayerId} open={pickerOpen} />
       </div>
     </div>
   );

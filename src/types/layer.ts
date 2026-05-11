@@ -1,6 +1,3 @@
-import type { KnobEffect, SoundId } from "../audio/types";
-
-export type { KnobEffect, SoundId };
 
 export type LayerId = "A" | "B" | "C" | "D" | "E";
 export const LAYER_IDS: LayerId[] = ["A", "B", "C", "D", "E"];
@@ -14,18 +11,6 @@ export interface LoopInstanceCompositionDims {
   compositionEndBeat: number;
 }
 
-export interface LayerKnob {
-  value: number;
-  label: string;
-}
-
-export type LayerKnobsByEffect = Partial<Record<KnobEffect, LayerKnob>>;
-
-export interface SoundMapping {
-  soundId: SoundId;
-  knobsByEffect: LayerKnobsByEffect;
-}
-
 export interface LoopNote {
   pitchClass: number;
   octave: number;
@@ -37,6 +22,14 @@ export interface LoopNote {
   lengthInBeat: number | null;
   /** Optional note intensity in [0, 1]. Defaults to 1 when omitted. */
   velocity?: number;
+  /** Semitones from the anchor pitch; fractional values OK (e.g. +0.5 = quarter-tone sharp). */
+  pitchOffset?: number;
+  /**
+   * Pitch curve control points relative to this note's start.
+   * Each offset is in semitones from (anchor + pitchOffset) — additive.
+   * beatOffset 0 is the note attack; points are applied as linear ramps.
+   */
+  pitchPoints?: { beatOffset: number; offset: number }[];
 }
 
 /** Placed instance row (placement + per-instance repeat count only). Shared repeat spacing lives on `LoopDefinition`. */
@@ -69,18 +62,14 @@ export interface LoopDefinition {
  */
 export interface LayerLoop {
   definition: LoopDefinition;
-  mapping: SoundMapping;
-  knobOrder: KnobEffect[];
+  /** Ordered page group names for the effects strip (core + optional). */
+  pageOrder: string[];
   /** Instances in placement order (index = instance id). */
   loopInstances: LayerLoopInstance[];
 }
 
 export interface Layer {
   role: string;
-  /** Layer output fader (0–1), separate from sound mapping. */
-  volume: number;
-  defaultMapping: SoundMapping;
-  knobOrder: KnobEffect[];
   /** Loops in creation order (index = loop id). */
   layerLoops: LayerLoop[];
 }
@@ -91,13 +80,6 @@ export interface LayerStoreState {
   /** Saved layer project data keyed by layer id. */
   layers: LayersState;
 
-  setLayerVolume: (id: LayerId, volume: number) => void;
-  setLayerSoundId: (id: LayerId, soundId: SoundId) => void;
-  setLayerKnobValue: (
-    id: LayerId,
-    effect: KnobEffect,
-    value: number,
-  ) => void;
   addLoopInstance: (
     layerId: LayerId,
     loopId: LayerLoopId,
@@ -112,17 +94,6 @@ export interface LayerStoreState {
   ) => void;
   duplicateLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
   clearLoopInstances: (layerId: LayerId, loopId: LayerLoopId) => void;
-  setLoopSoundId: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    soundId: SoundId,
-  ) => void;
-  setLoopKnobValue: (
-    layerId: LayerId,
-    loopId: LayerLoopId,
-    effect: KnobEffect,
-    value: number,
-  ) => void;
   shiftLoopNotesOctave: (
     layerId: LayerId,
     loopId: LayerLoopId,
@@ -159,17 +130,25 @@ export interface LayerStoreState {
   ) => void;
   addNewLoop: (layerId: LayerId) => void;
   deleteLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
+  setLoopPageOrder: (layerId: LayerId, loopId: LayerLoopId, pageOrder: string[]) => void;
   addLoopNote: (
     layerId: LayerId,
     loopId: LayerLoopId,
     pitchClass: number,
     octave: number,
     absoluteStartBeat: number,
+    pitchOffset?: number,
   ) => void;
   endLoopNote: (
     layerId: LayerId,
     loopId: LayerLoopId,
     absoluteEndBeat: number,
+  ) => void;
+  appendLoopNotePitchPoint: (
+    layerId: LayerId,
+    loopId: LayerLoopId,
+    beatOffset: number,
+    offset: number,
   ) => void;
   finalizeLoop: (
     layerId: LayerId,

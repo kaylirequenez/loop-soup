@@ -5,29 +5,46 @@ import type {
   LayerLoopInstance,
   LoopDefinition,
   LayersState,
-  SoundMapping,
 } from "../types/layer";
+import type { SoundMapping } from "../types/sound";
 import { LAYER_IDS } from "../types/layer";
 import { repeatStrideBeats } from "../utils/loopInstanceUtils";
 import { useCompositionStore } from "../store/compositionStore";
 import { beatsToTicks, midiToFrequency, ticksToTicksTime } from "./toneUnits";
 import type { LoopVoice } from "./audioEngine";
 
+interface PitchPoint {
+  timeOffsetSec: number;
+  freq: number;
+}
+
 interface NotePayload {
+  time: `${number}i`;
   freq: number;
   durationTicks: number;
   velocity: number;
+  pitchPoints?: PitchPoint[];
 }
 
-function definitionEvents(definition: LoopDefinition, ppq: number) {
+function definitionEvents(definition: LoopDefinition, ppq: number): { time: `${number}i`; freq: number; durationTicks: number; velocity: number; pitchPoints?: PitchPoint[] }[] {
+  const transport = getTransport();
   return definition.notes
     .filter((n) => n.lengthInBeat != null)
-    .map((n) => ({
-      time: ticksToTicksTime(beatsToTicks(n.beatIndex + n.startInBeat, ppq)),
-      freq: midiToFrequency((n.octave + 1) * 12 + n.pitchClass),
-      durationTicks: beatsToTicks(n.lengthInBeat!, ppq),
-      velocity: n.velocity ?? 1,
-    }));
+    .map((n) => {
+      const anchorMidi = (n.octave + 1) * 12 + n.pitchClass + (n.pitchOffset ?? 0);
+      const freq = midiToFrequency(anchorMidi);
+      const pitchPoints = n.pitchPoints?.map((pp) => ({
+        timeOffsetSec: transport.toSeconds(ticksToTicksTime(beatsToTicks(pp.beatOffset, ppq))),
+        freq: midiToFrequency(anchorMidi + pp.offset),
+      }));
+      return {
+        time: ticksToTicksTime(beatsToTicks(n.beatIndex + n.startInBeat, ppq)),
+        freq,
+        durationTicks: beatsToTicks(n.lengthInBeat!, ppq),
+        velocity: n.velocity ?? 1,
+        pitchPoints: pitchPoints?.length ? pitchPoints : undefined,
+      };
+    });
 }
 
 function buildPart(
@@ -44,14 +61,23 @@ function buildPart(
 
   if (events.length === 0) return null;
 
-  const part = new Part<NotePayload>(
-    (time, { freq, durationTicks, velocity }) => {
-      instrument.triggerAttackRelease(
-        freq,
-        ticksToTicksTime(durationTicks),
-        time,
-        velocity,
-      );
+  const part = new Part(
+    (time: number, note: NotePayload) => {
+      const { freq, durationTicks, velocity, pitchPoints } = note;
+      if (pitchPoints) {
+        const voice = instrument.triggerAttack(freq, time, velocity);
+        for (const pp of pitchPoints) {
+          voice.frequency.linearRampToValueAtTime(pp.freq, time + pp.timeOffsetSec);
+        }
+        instrument.scheduleRelease(voice, time + getTransport().toSeconds(ticksToTicksTime(durationTicks)));
+      } else {
+        instrument.triggerAttackRelease(
+          freq,
+          ticksToTicksTime(durationTicks),
+          time,
+          velocity,
+        );
+      }
     },
     events,
   );
@@ -188,6 +214,7 @@ class PartEngine {
     layerId: LayerId,
     loopId: number,
     loop: LayerLoop,
+    mapping: SoundMapping,
     createVoice: (
       layerId: LayerId,
       mapping: SoundMapping,
@@ -198,7 +225,7 @@ class PartEngine {
     const instrument = this.ensureLoopVoice(
       layerId,
       loopId,
-      loop.mapping,
+      mapping,
       createVoice,
     );
     if (!instrument) return;
@@ -251,6 +278,7 @@ class PartEngine {
 
   rebuildAll(
     layers: LayersState,
+    getLoopMapping: (layerId: LayerId, loopId: number) => SoundMapping,
     createVoice: (
       layerId: LayerId,
       mapping: SoundMapping,
@@ -264,6 +292,7 @@ class PartEngine {
           id,
           loopId,
           layer.layerLoops[loopId],
+          getLoopMapping(id, loopId),
           createVoice,
         );
       }

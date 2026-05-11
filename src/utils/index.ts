@@ -13,6 +13,10 @@ export function clamp(
   return Math.max(Number(min), Math.min(Number(max), Number(value)));
 }
 
+export function clamp01(value: number | string): number {
+  return clamp(value, 0, 1);
+}
+
 /**
  * Generates an array [1, 2, ..., maxInclusive].
  *

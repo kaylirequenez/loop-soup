@@ -10,9 +10,9 @@ import type {
   LoopNote,
 } from "../types/layer";
 import { useLayerEditorStore } from "./layerEditorStore";
-import { DEFAULT_LAYERS } from "./utils/defaults";
+import { useSoundStore } from "./soundStore";
+import { DEFAULT_LAYERS, DEFAULT_PAGE_ORDER } from "./utils/defaults";
 
-import { clamp } from "../utils";
 import { loopTimeline } from "../utils/loopTimeline";
 import {
   syncAddInstances,
@@ -21,7 +21,6 @@ import {
   syncDeleteLoop,
   syncExpandInstancesToComposition,
   syncLoopDefinitionNotes,
-  syncLoopMapping,
   syncRebuildInstance,
   syncTimelineLoop,
   syncTrimInstancesToComposition,
@@ -145,69 +144,14 @@ export function definitionSpanBeatsFromLastNote(lastNote: LoopNote): number {
  * Layer store
  *
  * Owns saved layer project data:
- * - layer default mapping
- * - numbered loops with per-loop mapping
+ * - numbered loops with definitions
  * - loop instance placements/repeat
- * - layer volume
  * - loop definitions (notes, span)
  */
 export const useLayerStore = create<LayerStoreState>()(
   persist(
     (set, get) => ({
       layers: initialLayers,
-
-      setLayerVolume: (id, volume) =>
-        set((state) => ({
-          layers: {
-            ...state.layers,
-            [id]: {
-              ...state.layers[id],
-              volume: clamp(volume, 0, 1),
-            },
-          },
-        })),
-
-      setLayerSoundId: (id, soundId) => {
-        set((state) => ({
-          layers: {
-            ...state.layers,
-            [id]: {
-              ...state.layers[id],
-              defaultMapping: {
-                ...state.layers[id].defaultMapping,
-                soundId,
-              },
-            },
-          },
-        }));
-        // Sound changes on the layer default mapping don't affect existing loop
-        // placements or Part scheduling; audioEngine will pick them up when
-        // new synths are built for future loops/instances.
-      },
-
-      setLayerKnobValue: (id, effect, value) => {
-        set((state) => ({
-          layers: {
-            ...state.layers,
-            [id]: {
-              ...state.layers[id],
-              defaultMapping: {
-                ...state.layers[id].defaultMapping,
-                knobsByEffect: {
-                  ...state.layers[id].defaultMapping.knobsByEffect,
-                  [effect]: {
-                    ...state.layers[id].defaultMapping.knobsByEffect[effect],
-                    value: clamp(value, 0, 1),
-                  },
-                },
-              },
-            },
-          },
-        }));
-        // Like setLayerSoundId, this only affects the layer default mapping
-        // used when creating future loops; existing loop synths are driven by
-        // per-loop mappings.
-      },
 
       /**
        * Spec: inserting one instance rebuilds `loopTimeline` for that
@@ -296,56 +240,6 @@ export const useLayerStore = create<LayerStoreState>()(
           loopId,
           startBeat,
         );
-      },
-
-      setLoopSoundId: (layerId, loopId, soundId) => {
-        set((state) => ({
-          layers: {
-            ...state.layers,
-            [layerId]: {
-              ...state.layers[layerId],
-              layerLoops: state.layers[layerId].layerLoops.map((l, i) =>
-                i !== loopId ? l : { ...l, mapping: { ...l.mapping, soundId } },
-              ),
-            },
-          },
-        }));
-        // This changes only the audio mapping (instrument choice) for this
-        // loop; note geometry and placements are unchanged, so we only need to
-        // rebuild the Parts/synths for this loop.
-        syncLoopMapping(useLayerStore.getState().layers, layerId, loopId);
-      },
-
-      setLoopKnobValue: (layerId, loopId, effect, value) => {
-        set((state) => ({
-          layers: {
-            ...state.layers,
-            [layerId]: {
-              ...state.layers[layerId],
-              layerLoops: state.layers[layerId].layerLoops.map((l, i) =>
-                i !== loopId
-                  ? l
-                  : {
-                      ...l,
-                      mapping: {
-                        ...l.mapping,
-                        knobsByEffect: {
-                          ...l.mapping.knobsByEffect,
-                          [effect]: {
-                            ...l.mapping.knobsByEffect[effect],
-                            value: clamp(value, 0, 1),
-                          },
-                        },
-                      },
-                    },
-              ),
-            },
-          },
-        }));
-        // Effects only affect the instrument envelope/FX for this loop. We can
-        // keep the same instance placements and just rebuild the Parts/synths
-        // for this loop.
-        syncLoopMapping(useLayerStore.getState().layers, layerId, loopId);
       },
 
       shiftLoopNotesOctave: (layerId, loopId, delta) => {
@@ -500,6 +394,15 @@ export const useLayerStore = create<LayerStoreState>()(
       addNewLoop: (layerId) => {
         const layer = get().layers[layerId];
         const newLoopId: LayerLoopId = layer.layerLoops.length;
+        const editor = useLayerEditorStore.getState();
+        const sourceLoopId =
+          editor.selectedLayerId === layerId ? editor.selectedLoopId : null;
+
+        // Inherit pageOrder from the source loop if one is selected.
+        const sourcePageOrder =
+          sourceLoopId != null
+            ? (get().layers[layerId].layerLoops[sourceLoopId]?.pageOrder ?? [...DEFAULT_PAGE_ORDER])
+            : [...DEFAULT_PAGE_ORDER];
 
         const newLoop: LayerLoop = {
           definition: {
@@ -509,11 +412,7 @@ export const useLayerStore = create<LayerStoreState>()(
             repeatEveryMeasuresMemory: null,
             repeatEveryBeatsMemory: null,
           },
-          mapping: {
-            ...layer.defaultMapping,
-            knobsByEffect: { ...layer.defaultMapping.knobsByEffect },
-          },
-          knobOrder: [...layer.knobOrder],
+          pageOrder: [...sourcePageOrder],
           loopInstances: [],
         };
 
@@ -527,7 +426,12 @@ export const useLayerStore = create<LayerStoreState>()(
           },
         }));
 
-        const editor = useLayerEditorStore.getState();
+        const soundStore = useSoundStore.getState();
+        if (sourceLoopId != null) {
+          soundStore.duplicateLoopMapping(layerId, sourceLoopId, newLoopId);
+        } else {
+          soundStore.createLoopMappingFromLayerDefault(layerId, newLoopId);
+        }
         editor.armNewLoopRecording(layerId, newLoopId);
       },
 
@@ -559,6 +463,7 @@ export const useLayerStore = create<LayerStoreState>()(
             },
           },
         }));
+        useSoundStore.getState().deleteLoopMapping(layerId, loopId);
         syncClearLoop(useLayerStore.getState().layers, layerId, loopId);
       },
 
@@ -584,6 +489,7 @@ export const useLayerStore = create<LayerStoreState>()(
             },
           },
         }));
+        useSoundStore.getState().duplicateLoopMapping(layerId, loopId, newLoopId);
         loopTimeline.rebuildLoop(
           layerId,
           newLoopId,
@@ -620,7 +526,7 @@ export const useLayerStore = create<LayerStoreState>()(
         syncDeleteLoop(layerId, loopId);
       },
 
-      addLoopNote: (layerId, loopId, pitchClass, octave, absoluteStartBeat) => {
+      addLoopNote: (layerId, loopId, pitchClass, octave, absoluteStartBeat, pitchOffset) => {
         const snappedAbsoluteStartBeat =
           snapStartBeatNearNextBoundary(absoluteStartBeat);
         set((state) => {
@@ -641,6 +547,7 @@ export const useLayerStore = create<LayerStoreState>()(
             startInBeat,
             lengthInBeat: null,
             velocity: 1,
+            ...(pitchOffset ? { pitchOffset } : {}),
           };
 
           return {
@@ -722,6 +629,43 @@ export const useLayerStore = create<LayerStoreState>()(
           loopId,
           snappedAbsoluteEndBeat,
         );
+        // Update Part events so the completed note (with pitchOffset/pitchPoints)
+        // is scheduled on the next loop iteration. No-op when no Parts exist yet.
+        syncLoopDefinitionNotes(useLayerStore.getState().layers, layerId, loopId);
+      },
+
+      appendLoopNotePitchPoint: (layerId, loopId, beatOffset, offset) => {
+        set((state) => {
+          const layer = state.layers[layerId];
+          const loop = layer.layerLoops[loopId];
+          const notes = loop.definition.notes;
+          const lastIdx = notes.length - 1;
+          if (lastIdx < 0) return state;
+          const last = notes[lastIdx];
+          const nextNotes = [
+            ...notes.slice(0, lastIdx),
+            {
+              ...last,
+              pitchPoints: [
+                ...(last.pitchPoints ?? []),
+                { beatOffset, offset },
+              ],
+            },
+          ];
+          return {
+            layers: {
+              ...state.layers,
+              [layerId]: {
+                ...layer,
+                layerLoops: layer.layerLoops.map((l, i) =>
+                  i !== loopId
+                    ? l
+                    : { ...loop, definition: { ...loop.definition, notes: nextNotes } },
+                ),
+              },
+            },
+          };
+        });
       },
 
       /**
@@ -801,6 +745,20 @@ export const useLayerStore = create<LayerStoreState>()(
         syncAddInstances(useLayerStore.getState().layers, layerId, loopId, [
           updatedLoop.loopInstances[0]!,
         ]);
+      },
+
+      setLoopPageOrder: (layerId, loopId, pageOrder) => {
+        set((state) => ({
+          layers: {
+            ...state.layers,
+            [layerId]: {
+              ...state.layers[layerId],
+              layerLoops: state.layers[layerId].layerLoops.map((l, i) =>
+                i !== loopId ? l : { ...l, pageOrder },
+              ),
+            },
+          },
+        }));
       },
 
       trimInstancesToComposition: (compositionDims) => {
@@ -1008,7 +966,7 @@ export const useLayerStore = create<LayerStoreState>()(
     }),
     {
       name: LAYER_STORE_KEY,
-      version: 5,
+      version: 10,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ layers: state.layers }),
       migrate: () => ({ layers: DEFAULT_LAYERS }),

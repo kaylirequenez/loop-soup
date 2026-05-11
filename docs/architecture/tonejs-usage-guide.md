@@ -31,7 +31,7 @@
 - **Current**
   - Clip scheduling: `Part` in [`src/audio/partEngine.ts`](src/audio/partEngine.ts).
   - Global playback cursor/config: `getTransport()` in [`src/audio/transportController.ts`](src/audio/transportController.ts).
-  - Instruments/channels: `PolySynth`, `Channel` in [`src/audio/audioEngine.ts`](src/audio/audioEngine.ts).
+  - Instruments/channels: `Synth` (via `VoicePool`, 8 voices per loop), `Channel`, `EQ3`, `Compressor` in [`src/audio/audioEngine.ts`](src/audio/audioEngine.ts).
   - UI nowbar: RAF + `transport.ticks` in [`src/hooks/useTransportClock.ts`](src/hooks/useTransportClock.ts), [`src/utils/midiTransport.ts`](src/utils/midiTransport.ts).
 - **Target**
   - Use `Part` for persisted note clips.
@@ -90,14 +90,20 @@
 - **Current**
   - Per-layer channels + per-loop synth mappings in [`src/audio/audioEngine.ts`](src/audio/audioEngine.ts).
   - Envelope/knob mapping applied at synth build/update time.
-  - No full layer/master FX bus architecture yet.
+  - Layer bus: `Channel` → `EQ3` → `Compressor` → master gain → limiter per layer; fully implemented.
+  - Master safety chain: `masterGain` (user-controlled) + `Limiter` (fixed −1 dBFS) at the output.
+  - Shared sends: `Reverb` and `FeedbackDelay` with per-layer `Gain` nodes (reverb send, delay send).
+- **VoicePool**
+  - 8 `Synth` instances per loop instance; oldest-voice stealing when pool is exhausted.
+  - Pitch drift applied at `triggerAttack` via `synth.detune.value` (±50 cents range).
+  - `VoicePool.updateMapping` applies param changes to all idle + active voices in-place.
+  - `VoicePool` implements the `LoopVoice` interface — swap for sampler/player voice pools via factory.
 - **Target**
-  - Per-loop voice abstraction with in-place param updates where possible.
-  - Layer bus for gain/pan/mute/solo and optional sends.
-  - Master safety chain (limiter/compressor) as future phase.
+  - Expand `LoopVoice` implementations beyond oscillator: `SamplerVoicePool`, `PlayerVoicePool`.
+  - Factory `createVoicePool(mapping)` dispatches on sound category (oscillator / sampler / player).
 - **Migration**
   - Keep current synth/channel model as stable base.
-  - Add shared-send/expensive-FX strategy only after runtime boundary is fully stable.
+  - Add new voice pool implementations behind the existing `LoopVoice` interface.
 
 ## Pitch Strategy
 

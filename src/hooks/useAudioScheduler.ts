@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useTransportStore } from "../store/transportStore";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerPlaybackStore } from "../store/layerPlaybackStore";
+import { useSoundStore } from "../store/soundStore";
+import { useMasterBusStore } from "../store/masterBusStore";
 import { audioEngine } from "../audio/audioEngine";
 import { partEngine } from "../audio/partEngine";
 import {
@@ -10,7 +12,6 @@ import {
 } from "../audio/transportController";
 import { LAYER_IDS } from "../types/layer";
 import type { LayerId } from "../types/layer";
-import type { SoundId } from "../audio/types";
 
 export function useAudioScheduler(): void {
   const isPlaying = useTransportStore((s) => s.isPlaying);
@@ -19,17 +20,8 @@ export function useAudioScheduler(): void {
     if (!isPlaying) return;
     let active = true;
     let playbackUnsub: (() => void) | undefined;
-    let layerUnsub: (() => void) | undefined;
 
-    const layers = useLayerStore.getState().layers;
-    const soundMap = new Map<LayerId, SoundId>(
-      LAYER_IDS.map((id) => {
-        const soundId = layers[id].defaultMapping.soundId;
-        return [id, soundId];
-      }),
-    );
-
-    audioEngine.init(soundMap).then(() => {
+    audioEngine.init().then(() => {
       if (!active) return;
       const latestLayers = useLayerStore.getState().layers;
 
@@ -41,24 +33,23 @@ export function useAudioScheduler(): void {
         }
       };
 
-      const syncLayerVolumes = () => {
-        const currentLayers = useLayerStore.getState().layers;
+      const syncLayerState = () => {
+        const currentSound = useSoundStore.getState();
         for (const id of LAYER_IDS) {
-          audioEngine.setLayerVolume(id, currentLayers[id].volume);
-          audioEngine.setLayerSendLevels(id, {
-            reverb: currentLayers[id].defaultMapping.knobsByEffect.attack?.value ?? 0.12,
-            delay: currentLayers[id].defaultMapping.knobsByEffect.decay?.value ?? 0.08,
-          });
+          audioEngine.setLayerVolume(id, currentSound.getLayerVolume(id));
+          audioEngine.updateLayerMix(id, currentSound.getLayerMixKnobs(id));
         }
       };
 
-      syncLayerVolumes();
+      syncLayerState();
       syncAudibility();
+      audioEngine.setMasterVolume(useMasterBusStore.getState().masterVolume);
       playbackUnsub = useLayerPlaybackStore.subscribe(syncAudibility);
-      layerUnsub = useLayerStore.subscribe(syncLayerVolumes);
 
       partEngine.rebuildAll(
         latestLayers,
+        (layerId, loopId) =>
+          useSoundStore.getState().getLoopMapping(layerId, loopId),
         (layerId, mapping) => audioEngine.createLoopVoice(layerId, mapping),
       );
       startPlaybackSession();
@@ -67,11 +58,10 @@ export function useAudioScheduler(): void {
     return () => {
       active = false;
       playbackUnsub?.();
-      layerUnsub?.();
       partEngine.disposeAll();
       audioEngine.cancelAll();
       stopPlaybackSession();
-      audioEngine.stop();
+      audioEngine.stopPlayback();
     };
   }, [isPlaying]);
 }

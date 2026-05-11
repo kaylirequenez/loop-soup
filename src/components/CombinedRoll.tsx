@@ -15,6 +15,8 @@ import {
 } from "../utils/timelineNoteLayout";
 import { timelineNoteSelectionHighlightClasses } from "../ui/timelineNoteHighlight";
 import { compositionLoopBeatLength } from "../utils/compositionState";
+import { LAYER_COLORS } from "../ui/layerTheme";
+import { PitchCurveOverlay } from "../ui/pitchCurveOverlay";
 
 interface CombinedRollProps {
   rollSlot: RollSlot;
@@ -74,6 +76,12 @@ function CombinedRollNote({ item }: { item: VisibleNote }) {
     >
       {showOctaveBadge && (
         <span className="mnote-octave-badge">{item.loopNote.octave + 1}</span>
+      )}
+      {showOctaveBadge && (
+        <PitchCurveOverlay
+          loopNote={item.loopNote}
+          color={LAYER_COLORS[item.layerId]}
+        />
       )}
     </button>
   );

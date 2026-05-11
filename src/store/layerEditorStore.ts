@@ -1,14 +1,19 @@
 import { create } from "zustand";
-import type { LayerId, LayerLoopId, LayerLoopInstance, LoopInstanceId } from "../types/layer";
+import type {
+  LayerId,
+  LayerLoopId,
+  LayerLoopInstance,
+  LoopInstanceId,
+} from "../types/layer";
 import type {
   LayerEditorState,
   PendingPlacement,
   InstanceEditMode,
-  InstanceEditState,
 } from "../types/layerEditor";
 
 interface LayerEditorStore extends LayerEditorState {
   setSelectedLayerId: (id: LayerId) => void;
+  setSelectedKnobPage: (page: number) => void;
   selectLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
   selectInstance: (
     layerId: LayerId,
@@ -68,7 +73,10 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   selectedInstanceIds: [],
   isRecordingLoop: false,
   pendingPlacement: null,
+  selectedKnobPage: 0,
   ...clearedInstanceEdit(),
+
+  setSelectedKnobPage: (page) => set({ selectedKnobPage: page }),
 
   setSelectedLayerId: (id) =>
     set((state) => {
@@ -78,6 +86,7 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
         selectedLayerId: id,
         selectedLoopId: null,
         selectedInstanceIds: [],
+        selectedKnobPage: 0,
         ...clearedInstanceEdit(),
       };
     }),
@@ -109,7 +118,11 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
       if (state.isRecordingLoop) return state;
       return state.selectedLayerId === layerId &&
         state.selectedLoopId === loopId
-        ? { selectedLoopId: null, selectedInstanceIds: [], ...clearedInstanceEdit() }
+        ? {
+            selectedLoopId: null,
+            selectedInstanceIds: [],
+            ...clearedInstanceEdit(),
+          }
         : {
             selectedLayerId: layerId,
             selectedLoopId: loopId,
@@ -163,7 +176,11 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   clearLoopSelection: () =>
     set((state) => {
       if (state.isRecordingLoop) return state;
-      return { selectedLoopId: null, selectedInstanceIds: [], ...clearedInstanceEdit() };
+      return {
+        selectedLoopId: null,
+        selectedInstanceIds: [],
+        ...clearedInstanceEdit(),
+      };
     }),
 
   clearInstanceSelection: () =>
@@ -214,14 +231,21 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   setInstanceEditMode: (mode) =>
     set((state) =>
       state.instanceEditState
-        ? { instanceEditState: { ...state.instanceEditState, activeMode: mode } }
+        ? {
+            instanceEditState: { ...state.instanceEditState, activeMode: mode },
+          }
         : state,
     ),
 
   updateProposedInstances: (instances) =>
     set((state) =>
       state.instanceEditState
-        ? { instanceEditState: { ...state.instanceEditState, proposedInstances: instances } }
+        ? {
+            instanceEditState: {
+              ...state.instanceEditState,
+              proposedInstances: instances,
+            },
+          }
         : state,
     ),
 

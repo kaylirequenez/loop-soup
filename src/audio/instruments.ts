@@ -1,18 +1,16 @@
 import { PolySynth, Synth } from "tone";
-import type { SoundId } from "./types";
-import type { LayerId, SoundMapping } from "../types/layer";
-import { LAYER_IDS } from "../types/layer";
-import { knobToEnvParam } from "./sounds";
+import { LAYER_IDS, type LayerId } from "../types/layer";
+import type { OscillatorSoundId, SoundId, SoundMapping } from "../types/sound";
+import { getSoundCategory } from "../sound/soundSpecs";
+import { knobToEnvParam } from "./soundParams";
 
-export function buildLayerSynth(
-  soundId: SoundId,
-): PolySynth<Synth> {
-  return new PolySynth(Synth, {
-    oscillator: { type: soundId },
-  });
+function oscillatorType(soundId: SoundId): OscillatorSoundId {
+  return getSoundCategory(soundId) === "oscillator"
+    ? (soundId as OscillatorSoundId)
+    : "sawtooth";
 }
 
-function mappingEnvelope(mapping: SoundMapping): {
+export function mappingEnvelope(mapping: SoundMapping): {
   attack: number;
   decay: number;
   sustain: number;
@@ -28,42 +26,23 @@ function mappingEnvelope(mapping: SoundMapping): {
   };
 }
 
-export function applyMappingEnvelope(
-  synth: PolySynth<Synth>,
-  mapping: SoundMapping,
-): void {
-  synth.set({ envelope: mappingEnvelope(mapping) });
-}
-
 export function applyMappingToSynth(
   synth: PolySynth<Synth>,
   mapping: SoundMapping,
 ): void {
   synth.set({
-    oscillator: { type: mapping.soundId },
+    oscillator: { type: oscillatorType(mapping.soundId) },
     envelope: mappingEnvelope(mapping),
   });
 }
 
-export function buildPreviewSynth(
+function buildPreviewSynth(
   mapping: SoundMapping,
 ): PolySynth<Synth> {
-  const soundId = mapping.soundId;
   return new PolySynth(Synth, {
-    oscillator: { type: soundId },
+    oscillator: { type: oscillatorType(mapping.soundId) },
     envelope: mappingEnvelope(mapping),
   });
-}
-
-/** Per-layer synths for loop playback. Envelope is set dynamically from knob values. */
-export function buildInstruments(
-  layerSounds: Map<LayerId, SoundId>,
-): Map<LayerId, PolySynth<Synth>> {
-  const map = new Map<LayerId, PolySynth<Synth>>();
-  for (const id of LAYER_IDS) {
-    map.set(id, buildLayerSynth(layerSounds.get(id)!));
-  }
-  return map;
 }
 
 /** Per-layer preview synths for softpot — always snappy regardless of knob settings. */
@@ -77,6 +56,7 @@ export function buildPreviewInstruments(
       id,
       buildPreviewSynth({
         soundId,
+        mix: { volume: 0.7, pan: 0.5 },
         knobsByEffect: {},
       }),
     );
