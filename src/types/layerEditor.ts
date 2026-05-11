@@ -1,5 +1,12 @@
 import type { LayerId, LayerLoopId, LayerLoopInstance, LoopInstanceId } from "./layer";
 
+export interface SelectedKnob {
+  layerId: LayerId;
+  loopId: LayerLoopId | null;
+  effect: string;
+  kind: "sound" | "mix";
+}
+
 export interface PendingPlacement {
   layerId: LayerId;
   loopId: LayerLoopId;

@@ -9,11 +9,13 @@ import { useTransportClock } from "./hooks/useTransportClock";
 import { useAudioScheduler } from "./hooks/useAudioScheduler";
 import SoftPot from "./components/SoftPot";
 import TopBar from "./components/TopBar";
+import { autoConnect } from "./hardware/softpotSerial";
 
 export default function App() {
   useTransportClock();
   useAudioScheduler();
   useEffect(() => subscribeLoopTimeline(), []);
+  useEffect(() => { void autoConnect(); }, []);
   useEffect(() => {
     window.addEventListener("keydown", handleGlobalKeyDown);
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);

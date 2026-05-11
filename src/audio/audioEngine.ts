@@ -40,6 +40,16 @@ import {
 import { createVoicePool } from "./voicePoolFactory";
 import { collectSoundSampleUrls } from "../sound/soundSpecs";
 
+const softpotDebugEnabled = import.meta.env.DEV;
+
+function softpotDebug(...args: unknown[]) {
+  if (softpotDebugEnabled) console.debug("[softpot:audio]", ...args);
+}
+
+function softpotWarn(...args: unknown[]) {
+  if (softpotDebugEnabled) console.warn("[softpot:audio]", ...args);
+}
+
 function layerFader01ToDb(volume01: number): number {
   const v = clamp01(volume01);
   if (v <= 0) return -Infinity;
@@ -454,7 +464,10 @@ class AudioEngine {
     mapping: SoundMapping,
   ): { voice: LoopVoice; soundId: SoundId; handle: VoiceHandle | null } | null {
     const channel = this.channels.get(layerId);
-    if (!channel) return null;
+    if (!channel) {
+      softpotWarn("cannot create preview voice; missing layer channel", { layerId });
+      return null;
+    }
     const existing = this.previewVoices.get(layerId);
     if (existing && existing.soundId === mapping.soundId) return existing;
     existing?.voice.dispose();
@@ -464,7 +477,14 @@ class AudioEngine {
   }
 
   async beginPreviewNote(layerId: LayerId, mapping: SoundMapping, freqHz: number): Promise<void> {
-    if (!this.ready) return;
+    if (!this.ready) {
+      softpotWarn("beginPreviewNote ignored; audio engine is not ready", {
+        layerId,
+        soundId: mapping.soundId,
+        freqHz,
+      });
+      return;
+    }
     const pv = this.getOrCreatePreviewVoice(layerId, mapping);
     if (!pv) return;
     await pv.voice.waitUntilLoaded?.();
@@ -476,6 +496,7 @@ class AudioEngine {
     pv.voice.updateMapping(mapping);
     pv.handle = pv.voice.triggerAttack(freqHz, now());
     this.previewFreqs.set(layerId, freqHz);
+    softpotDebug("preview note started", { layerId, soundId: mapping.soundId, freqHz });
   }
 
   /** Ramp the held preview note's frequency without retriggering the envelope. */
@@ -487,7 +508,14 @@ class AudioEngine {
   }
 
   async updatePreviewNote(layerId: LayerId, mapping: SoundMapping, freqHz: number): Promise<void> {
-    if (!this.ready) return;
+    if (!this.ready) {
+      softpotWarn("updatePreviewNote ignored; audio engine is not ready", {
+        layerId,
+        soundId: mapping.soundId,
+        freqHz,
+      });
+      return;
+    }
     const pv = this.getOrCreatePreviewVoice(layerId, mapping);
     if (!pv) return;
     await pv.voice.waitUntilLoaded?.();
@@ -499,14 +527,19 @@ class AudioEngine {
     pv.voice.updateMapping(mapping);
     pv.handle = pv.voice.triggerAttack(freqHz, now());
     this.previewFreqs.set(layerId, freqHz);
+    softpotDebug("preview note updated", { layerId, soundId: mapping.soundId, freqHz });
   }
 
   endPreviewNote(layerId: LayerId): void {
-    if (!this.ready) return;
+    if (!this.ready) {
+      softpotWarn("endPreviewNote ignored; audio engine is not ready", { layerId });
+      return;
+    }
     const pv = this.previewVoices.get(layerId);
     if (pv) {
       pv.voice.releaseAll(getToneContext().currentTime);
       pv.handle = null;
+      softpotDebug("preview note ended", { layerId });
     }
     this.previewFreqs.delete(layerId);
   }

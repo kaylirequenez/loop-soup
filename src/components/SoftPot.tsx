@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { clamp } from "../utils";
 import { useCompositionStore } from "../store/compositionStore";
@@ -9,7 +9,7 @@ import {
   softpotChromoRows,
 } from "../utils/pitch";
 import type { LayerId, LayerLoopId } from "../types/layer";
-import type { SoundMapping } from "../types/sound";
+import type { KnobEffect, LayerMixEffect, SoundMapping } from "../types/sound";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerStore } from "../store/layerStore";
 import { useSoundStore } from "../store/soundStore";
@@ -19,10 +19,15 @@ import { audioEngine } from "../audio/audioEngine";
 import { midiToFrequency } from "../audio/toneUnits";
 import { getNowbarBeat } from "../audio/transportController";
 import { getSoundCategory } from "../sound/soundSpecs";
+import { onSoftpotData } from "../hardware/softpotSerial";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
 const SOFTPOT_STEPS = 24;
 const DEFAULT_SOFTPOT_POSITION = 11.5 / SOFTPOT_STEPS;
+// Require 2 consecutive non-null frames before treating A0 as a real touch.
+const A0_CONFIRM_FRAMES = 2;
+// Full strip travel changes the knob by this fraction of its range.
+const A1_SENSITIVITY = 0.5;
 
 function rowCenterPosition01(rowIndex: number) {
   return Math.max(0, Math.min(1, (rowIndex + 0.5) / SOFTPOT_STEPS));
@@ -85,8 +90,15 @@ export default function SoftPot() {
     layerId: LayerId;
     loopId: LayerLoopId;
   } | null>(null);
-  /** Last preview row index sounded during a drag, used to detect row changes. */
   const lastPreviewRowRef = useRef<number | null>(null);
+  // null = no gesture active, 'physical' = hardware softpot, 'screen' = pointer
+  const gestureSourceRef = useRef<"physical" | "screen" | null>(null);
+  // A0 debounce: count consecutive non-null frames before starting a gesture
+  const consecutiveA0FramesRef = useRef(0);
+  const prevPhysicalA0Ref = useRef<number | null>(null);
+  // A1 knob control
+  const prevPhysicalA1Ref = useRef<number | null>(null);
+  const a1AnchorRef = useRef<{ position: number; knobValue: number } | null>(null);
 
   function currentPreviewMapping(layerId: LayerId): SoundMapping {
     const editor = useLayerEditorStore.getState();
@@ -95,6 +107,34 @@ export default function SoftPot() {
       return useSoundStore.getState().getLoopMapping(layerId, selectedLoopId);
     }
     return useSoundStore.getState().getLayerDefaultMapping(layerId);
+  }
+
+  function getSelectedKnobValue(): number {
+    const { selectedKnob } = useLayerEditorStore.getState();
+    if (!selectedKnob) return 0;
+    const soundStore = useSoundStore.getState();
+    if (selectedKnob.kind === "mix") {
+      const knobs = soundStore.getLayerMixKnobs(selectedKnob.layerId) as Record<string, { value: number } | undefined>;
+      return knobs[selectedKnob.effect]?.value ?? 0.5;
+    }
+    const mapping = selectedKnob.loopId != null
+      ? soundStore.getLoopMapping(selectedKnob.layerId, selectedKnob.loopId)
+      : soundStore.getLayerDefaultMapping(selectedKnob.layerId);
+    const knobs = mapping.knobsByEffect as Record<string, { value: number } | undefined>;
+    return knobs[selectedKnob.effect]?.value ?? 0.5;
+  }
+
+  function applySelectedKnobValue(value: number): void {
+    const { selectedKnob } = useLayerEditorStore.getState();
+    if (!selectedKnob) return;
+    const soundStore = useSoundStore.getState();
+    if (selectedKnob.kind === "mix") {
+      soundStore.setLayerMixKnobValue(selectedKnob.layerId, selectedKnob.effect as LayerMixEffect, value);
+    } else if (selectedKnob.loopId != null) {
+      soundStore.setLoopKnobValue(selectedKnob.layerId, selectedKnob.loopId, selectedKnob.effect as KnobEffect, value);
+    } else {
+      soundStore.setLayerKnobValue(selectedKnob.layerId, selectedKnob.effect as KnobEffect, value);
+    }
   }
 
   const captureNoteStart = (midi: number, useContinuousPitch = false) => {
@@ -180,6 +220,7 @@ export default function SoftPot() {
   };
 
   const endGesture = () => {
+    gestureSourceRef.current = null;
     setGestureActive(false);
     document.body.classList.remove(DRAG_SELECTION_CLASS);
     audioEngine.endPreviewNote(selectedLayer);
@@ -187,20 +228,124 @@ export default function SoftPot() {
     commitNote();
   };
 
-  const updateStripFromPointer = (element: HTMLDivElement, clientY: number) => {
-    const rect = element.getBoundingClientRect();
-    if (rect.height <= 0) return;
-    const relative = (clientY - rect.top) / rect.height;
-    const nextPosition = clamp(
-      relative,
-      allowedMinPosition,
-      allowedMaxPosition,
-    );
-    setSoftpotPosition(nextPosition);
+  // Shared move logic for both pointer and physical input (requires active gesture).
+  const performMoveUpdate = (relative: number) => {
+    const clampedRelative = clamp(relative, allowedMinPosition, allowedMaxPosition);
+    setSoftpotPosition(clampedRelative);
+    const currentMidi = topMidi - (clampedRelative * SOFTPOT_STEPS - 0.5);
+    const previewMapping = currentPreviewMapping(selectedLayer);
+    const category = getSoundCategory(previewMapping.soundId);
+    const newRow = rowIndexFromPosition(clampedRelative);
+    const clampedRow = clamp(newRow, allowedMinRow, allowedMaxRow);
+
+    if (category !== "oscillator" && clampedRow !== lastPreviewRowRef.current) {
+      lastPreviewRowRef.current = clampedRow;
+      void audioEngine.updatePreviewNote(selectedLayer, previewMapping, midiToFrequency(chromoRows[clampedRow].midi));
+    } else {
+      audioEngine.slidePreviewNote(selectedLayer, midiToFrequency(currentMidi));
+    }
+
+    const target = recordingTargetRef.current;
+    if (target && noteStartBeatRef.current !== null && capturedMidiRef.current !== null) {
+      if (category === "oscillator") {
+        const offset = currentMidi - capturedMidiRef.current;
+        const beatOffset = getNowbarBeat() - noteStartBeatRef.current;
+        if (beatOffset > 0) {
+          useLayerStore.getState().appendLoopNotePitchPoint(target.layerId, target.loopId, beatOffset, offset);
+        }
+      } else {
+        const rowMidi = chromoRows[clampedRow].midi;
+        if (rowMidi !== capturedMidiRef.current) {
+          commitNote();
+          captureNoteStart(rowMidi);
+        }
+      }
+    }
   };
 
-  const handleStripPointerDown = usePointerDrag<HTMLDivElement>({
+  // Keep fresh refs to gesture functions so the serial subscription (runs once) always
+  // calls the current-render versions of these closures.
+  const physicalCallbacksRef = useRef({
+    performMoveUpdate,
+    beginGesture,
+    endGesture,
+    captureNoteStart,
+    topMidi,
+    allowedMinPosition,
+    allowedMaxPosition,
+    allowedMinRow,
+    allowedMaxRow,
+  });
+  physicalCallbacksRef.current = {
+    performMoveUpdate,
+    beginGesture,
+    endGesture,
+    captureNoteStart,
+    topMidi,
+    allowedMinPosition,
+    allowedMaxPosition,
+    allowedMinRow,
+    allowedMaxRow,
+  };
+
+  useEffect(() => {
+    return onSoftpotData(({ a0, a1 }) => {
+      const cb = physicalCallbacksRef.current;
+
+      // --- A0: pitch gesture (2-frame debounce to filter touch noise) ---
+      if (a0 !== null) {
+        consecutiveA0FramesRef.current += 1;
+      } else {
+        consecutiveA0FramesRef.current = 0;
+      }
+      const prevA0 = prevPhysicalA0Ref.current;
+      prevPhysicalA0Ref.current = a0;
+      const physicalGestureActive = gestureSourceRef.current === "physical";
+
+      if (!physicalGestureActive && a0 !== null && consecutiveA0FramesRef.current >= A0_CONFIRM_FRAMES) {
+        // Touch confirmed after debounce — start gesture
+        if (gestureSourceRef.current === null) {
+          gestureSourceRef.current = "physical";
+          const position01 = clamp(a0, cb.allowedMinPosition, cb.allowedMaxPosition);
+          setSoftpotPosition(position01);
+          lastPreviewRowRef.current = clamp(
+            rowIndexFromPosition(position01),
+            cb.allowedMinRow,
+            cb.allowedMaxRow,
+          );
+          const midi = cb.topMidi - (position01 * SOFTPOT_STEPS - 0.5);
+          cb.beginGesture(midiToFrequency(midi));
+          cb.captureNoteStart(midi, true);
+        }
+      } else if (physicalGestureActive && a0 !== null) {
+        cb.performMoveUpdate(a0);
+      } else if (physicalGestureActive && a0 === null) {
+        cb.endGesture();
+      }
+
+      // --- A1: selected knob control (relative from touch anchor) ---
+      const wasActiveA1 = prevPhysicalA1Ref.current !== null;
+      prevPhysicalA1Ref.current = a1;
+
+      if (!wasActiveA1 && a1 !== null) {
+        a1AnchorRef.current = { position: a1, knobValue: getSelectedKnobValue() };
+      } else if (wasActiveA1 && a1 !== null) {
+        const anchor = a1AnchorRef.current;
+        if (anchor) {
+          // Up (lower position01) increases value, down decreases
+          applySelectedKnobValue(anchor.knobValue + (anchor.position - a1) * A1_SENSITIVITY);
+        }
+      } else if (wasActiveA1 && a1 === null) {
+        a1AnchorRef.current = null;
+      }
+
+      void prevA0; // suppress unused warning
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rawHandleStripPointerDown = usePointerDrag<HTMLDivElement>({
     onStart: (element, event) => {
+      gestureSourceRef.current = "screen";
       const rect = element.getBoundingClientRect();
       const relative = clamp(
         (event.clientY - rect.top) / rect.height,
@@ -209,63 +354,26 @@ export default function SoftPot() {
       );
       const midi = topMidi - (relative * SOFTPOT_STEPS - 0.5);
       lastPreviewRowRef.current = clamp(rowIndexFromPosition(relative), allowedMinRow, allowedMaxRow);
-      updateStripFromPointer(element, event.clientY);
+      setSoftpotPosition(relative);
       beginGesture(midiToFrequency(midi));
       captureNoteStart(midi, true);
     },
     onMove: (element, moveEvent) => {
-      updateStripFromPointer(element, moveEvent.clientY);
       const rect = element.getBoundingClientRect();
       if (rect.height <= 0) return;
-      const relative = clamp(
-        (moveEvent.clientY - rect.top) / rect.height,
-        allowedMinPosition,
-        allowedMaxPosition,
-      );
-      const currentMidi = topMidi - (relative * SOFTPOT_STEPS - 0.5);
-
-      // Audio preview always follows current position, regardless of recording state.
-      const previewMapping = currentPreviewMapping(selectedLayer);
-      const category = getSoundCategory(previewMapping.soundId);
-      const newRow = rowIndexFromPosition(relative);
-      const clampedRow = clamp(newRow, allowedMinRow, allowedMaxRow);
-      if (category !== "oscillator" && clampedRow !== lastPreviewRowRef.current) {
-        lastPreviewRowRef.current = clampedRow;
-        void audioEngine.updatePreviewNote(selectedLayer, previewMapping, midiToFrequency(chromoRows[clampedRow].midi));
-      } else {
-        audioEngine.slidePreviewNote(selectedLayer, midiToFrequency(currentMidi));
-      }
-
-      // Recording: capture pitch movement into the loop.
-      const target = recordingTargetRef.current;
-      if (target && noteStartBeatRef.current !== null && capturedMidiRef.current !== null) {
-        if (category === "oscillator") {
-          // Record actual pitch offset as a curve point so playback glides with the drag.
-          const offset = currentMidi - capturedMidiRef.current;
-          const beatOffset = getNowbarBeat() - noteStartBeatRef.current;
-          if (beatOffset > 0) {
-            useLayerStore.getState().appendLoopNotePitchPoint(
-              target.layerId,
-              target.loopId,
-              beatOffset,
-              offset,
-            );
-          }
-        } else {
-          // Sampler/player: end current note and start a new one on each semitone crossing.
-          const rowMidi = chromoRows[clampedRow].midi;
-          if (rowMidi !== capturedMidiRef.current) {
-            commitNote();
-            captureNoteStart(rowMidi);
-          }
-        }
-      }
+      performMoveUpdate((moveEvent.clientY - rect.top) / rect.height);
     },
     onEnd: () => endGesture(),
   });
 
-  const handleNoteColPointerDown = usePointerDrag<HTMLDivElement>({
+  const handleStripPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (gestureSourceRef.current !== null) return;
+    rawHandleStripPointerDown(event);
+  };
+
+  const rawHandleNoteColPointerDown = usePointerDrag<HTMLDivElement>({
     onStart: (noteCol, event) => {
+      gestureSourceRef.current = "screen";
       const row = rowIndexFromClientY(noteCol, event.clientY);
       const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
       setSoftpotToAllowedRow(row);
@@ -284,7 +392,6 @@ export default function SoftPot() {
           currentPreviewMapping(selectedLayer),
           midiToFrequency(chromoRows[clampedRow].midi),
         );
-        // During recording: commit the current note and start a new one at the new pitch.
         const wasRecording = noteStartBeatRef.current !== null;
         if (wasRecording) {
           commitNote();
@@ -294,6 +401,11 @@ export default function SoftPot() {
     },
     onEnd: () => endGesture(),
   });
+
+  const handleNoteColPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (gestureSourceRef.current !== null) return;
+    rawHandleNoteColPointerDown(event);
+  };
 
   return (
     <div className="sp-zone">

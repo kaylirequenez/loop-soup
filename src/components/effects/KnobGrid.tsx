@@ -32,6 +32,7 @@ export interface LayerMixKnobDef extends KnobDisplayDef {
 interface KnobGridProps {
   color: string;
   defs: KnobDisplayDef[];
+  selectedEffect?: string;
   onKnobPointerDown: (
     event: React.PointerEvent<HTMLDivElement>,
     effect: string,
@@ -116,6 +117,7 @@ export const buildLayerKnobDefs = (
 export default function KnobGrid({
   color,
   defs,
+  selectedEffect,
   onKnobPointerDown,
 }: KnobGridProps) {
   return (
@@ -130,7 +132,7 @@ export default function KnobGrid({
         } = getKnobUi(value ?? 0.5);
 
         return (
-          <div className="kg" key={`knob-${effect}`}>
+          <div className={`kg${selectedEffect === effect ? " kg--selected" : ""}`} key={`knob-${effect}`}>
             <div
               className="knob"
               onPointerDown={(event) =>

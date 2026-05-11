@@ -9,9 +9,14 @@ import type {
   LayerEditorState,
   PendingPlacement,
   InstanceEditMode,
+  SelectedKnob,
 } from "../types/layerEditor";
 
+export type { SelectedKnob };
+
 interface LayerEditorStore extends LayerEditorState {
+  selectedKnob: SelectedKnob | null;
+  selectKnob: (layerId: LayerId, loopId: LayerLoopId | null, effect: string, kind: "sound" | "mix") => void;
   setSelectedLayerId: (id: LayerId) => void;
   setSelectedKnobPage: (page: number) => void;
   selectLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
@@ -74,7 +79,11 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   isRecordingLoop: false,
   pendingPlacement: null,
   selectedKnobPage: 0,
+  selectedKnob: null,
   ...clearedInstanceEdit(),
+
+  selectKnob: (layerId, loopId, effect, kind) =>
+    set({ selectedKnob: { layerId, loopId, effect, kind } }),
 
   setSelectedKnobPage: (page) => set({ selectedKnobPage: page }),
 

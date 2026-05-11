@@ -12,7 +12,11 @@ import { useSoundStore } from "../store/soundStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
 import { useLayerPlaybackStore } from "../store/layerPlaybackStore";
 import type { LayerId } from "../types/layer";
-import type { KnobEffect, LayerMixEffect, LoopEffectType } from "../types/sound";
+import type {
+  KnobEffect,
+  LayerMixEffect,
+  LoopEffectType,
+} from "../types/sound";
 import { usePointerDrag } from "../hooks/usePointerDrag";
 import { buildLayerKnobDefs, buildMixKnobDefs } from "./effects/KnobGrid";
 import KnobGrid from "./effects/KnobGrid";
@@ -22,7 +26,10 @@ const DRAG_SELECTION_CLASS = "drag-selection-lock";
 
 const LAYER_MIX_SECTIONS: { label: string; knobs: LayerMixEffect[] }[] = [
   { label: "EQ", knobs: ["eqLow", "eqMid", "eqHigh"] },
-  { label: "Comp", knobs: ["compThreshold", "compRatio", "compAttack", "compRelease"] },
+  {
+    label: "Comp",
+    knobs: ["compThreshold", "compRatio", "compAttack", "compRelease"],
+  },
 ];
 
 const CORE_SECTIONS_OSCILLATOR: { label: string; knobs: KnobEffect[] }[] = [
@@ -41,7 +48,13 @@ const CORE_SECTIONS_PLAYER: { label: string; knobs: KnobEffect[] }[] = [
 ];
 
 const ALL_OPTIONAL_EFFECTS: LoopEffectType[] = [
-  "chorus", "phaser", "vibrato", "autoFilter", "tremolo", "distortion", "bitCrusher",
+  "chorus",
+  "phaser",
+  "vibrato",
+  "autoFilter",
+  "tremolo",
+  "distortion",
+  "bitCrusher",
 ];
 
 type KnobDragState =
@@ -74,13 +87,16 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const activeLoopId = useLayerEditorStore((s) =>
     s.selectedLayerId === layerId ? s.selectedLoopId : null,
   );
-  const { toggleManualMute, toggleLayerSolo, soloLayerId } = useLayerPlaybackStore(
-    useShallow((s) => ({
-      toggleManualMute: s.toggleManualMute,
-      toggleLayerSolo: s.toggleLayerSolo,
-      soloLayerId: s.soloLayerId,
-    })),
-  );
+  const selectedKnob = useLayerEditorStore((s) => s.selectedKnob);
+  const selectKnob = useLayerEditorStore((s) => s.selectKnob);
+  const { toggleManualMute, toggleLayerSolo, soloLayerId } =
+    useLayerPlaybackStore(
+      useShallow((s) => ({
+        toggleManualMute: s.toggleManualMute,
+        toggleLayerSolo: s.toggleLayerSolo,
+        soloLayerId: s.soloLayerId,
+      })),
+    );
   const solo = soloLayerId === layerId;
   const muted = useLayerPlaybackStore((s) => !s.isLayerAudible(layerId));
 
@@ -90,22 +106,32 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
       ? s.getLoopSound(layerId, activeLoopId)
       : s.getLayerDefaultSound(layerId),
   );
-  const activeMapping = useMemo(() => loopSoundToMapping(activeLoopSound), [activeLoopSound]);
+  const activeMapping = useMemo(
+    () => loopSoundToMapping(activeLoopSound),
+    [activeLoopSound],
+  );
   const layerVolume = useSoundStore((s) => s.getLayerVolume(layerId));
   const layerMixKnobs = useSoundStore((s) => s.getLayerMixKnobs(layerId));
 
   const isMixPage = activeLoopId == null;
   const soundCategory = getSoundCategory(activeLoopSound.soundId);
   const coreSections =
-    soundCategory === "player" ? CORE_SECTIONS_PLAYER :
-    soundCategory === "sampler" ? CORE_SECTIONS_SAMPLER :
-    CORE_SECTIONS_OSCILLATOR;
+    soundCategory === "player"
+      ? CORE_SECTIONS_PLAYER
+      : soundCategory === "sampler"
+        ? CORE_SECTIONS_SAMPLER
+        : CORE_SECTIONS_OSCILLATOR;
   const activeEffects = activeLoopSound.effects;
-  const activeEffectTypes = new Set(activeEffects.map((e) => e.type as LoopEffectType));
-  const activeOptionalSections = ALL_OPTIONAL_EFFECTS.filter((et) => activeEffectTypes.has(et));
+  const activeEffectTypes = new Set(
+    activeEffects.map((e) => e.type as LoopEffectType),
+  );
+  const activeOptionalSections = ALL_OPTIONAL_EFFECTS.filter((et) =>
+    activeEffectTypes.has(et),
+  );
 
   const loopCount = layer.layerLoops.length;
-  const faderValue = activeLoopId != null ? activeLoopSound.mix.volume : layerVolume;
+  const faderValue =
+    activeLoopId != null ? activeLoopSound.mix.volume : layerVolume;
   const faderPercent = Math.round(faderValue * 100);
   const panPercent = Math.round(activeLoopSound.mix.pan * 100);
 
@@ -118,7 +144,9 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const knobDragStateRef = useRef<KnobDragState | null>(null);
   const handleKnobDragPointerDown = usePointerDrag<HTMLDivElement>({
     dragLockClassName: DRAG_SELECTION_CLASS,
-    onStart: (_el, event) => { event.stopPropagation(); },
+    onStart: (_el, event) => {
+      event.stopPropagation();
+    },
     onMove: (_el, e) => {
       const drag = knobDragStateRef.current;
       if (!drag || (e.buttons & 1) !== 1) return;
@@ -131,16 +159,38 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
         setLayerKnobValue(layerId, drag.effect, newValue);
       }
     },
-    onEnd: () => { knobDragStateRef.current = null; },
+    onEnd: () => {
+      knobDragStateRef.current = null;
+    },
   });
+
+  const selectedEffectForLayer =
+    selectedKnob?.layerId === layerId && selectedKnob?.loopId === activeLoopId
+      ? selectedKnob.effect
+      : undefined;
 
   const makeKnobDown =
     (kind: "mix" | "sound") =>
-    (event: React.PointerEvent<HTMLDivElement>, effect: string, knobValue: number) => {
+    (
+      event: React.PointerEvent<HTMLDivElement>,
+      effect: string,
+      knobValue: number,
+    ) => {
+      selectKnob(layerId, activeLoopId, effect, kind);
       knobDragStateRef.current =
         kind === "mix"
-          ? { kind: "mix", effect: effect as LayerMixEffect, startValue: knobValue, startY: event.clientY }
-          : { kind: "sound", effect: effect as KnobEffect, startValue: knobValue, startY: event.clientY };
+          ? {
+              kind: "mix",
+              effect: effect as LayerMixEffect,
+              startValue: knobValue,
+              startY: event.clientY,
+            }
+          : {
+              kind: "sound",
+              effect: effect as KnobEffect,
+              startValue: knobValue,
+              startY: event.clientY,
+            };
       handleKnobDragPointerDown(event);
     };
 
@@ -148,12 +198,16 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
   const handleFaderPointerDown = usePointerDrag<HTMLDivElement>({
     dragLockClassName: DRAG_SELECTION_CLASS,
     onStart: (el, event) => {
-      const pct = (event.clientX - el.getBoundingClientRect().left) / el.getBoundingClientRect().width;
+      const pct =
+        (event.clientX - el.getBoundingClientRect().left) /
+        el.getBoundingClientRect().width;
       if (activeLoopId != null) setLoopVolume(layerId, activeLoopId, pct);
       else setLayerVolume(layerId, pct);
     },
     onMove: (el, e) => {
-      const pct = (e.clientX - el.getBoundingClientRect().left) / el.getBoundingClientRect().width;
+      const pct =
+        (e.clientX - el.getBoundingClientRect().left) /
+        el.getBoundingClientRect().width;
       if (activeLoopId != null) setLoopVolume(layerId, activeLoopId, pct);
       else setLayerVolume(layerId, pct);
     },
@@ -164,17 +218,28 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
     dragLockClassName: DRAG_SELECTION_CLASS,
     onStart: (el, event) => {
       if (activeLoopId == null) return;
-      setLoopPan(layerId, activeLoopId, (event.clientX - el.getBoundingClientRect().left) / el.getBoundingClientRect().width);
+      setLoopPan(
+        layerId,
+        activeLoopId,
+        (event.clientX - el.getBoundingClientRect().left) /
+          el.getBoundingClientRect().width,
+      );
     },
     onMove: (el, e) => {
       if (activeLoopId == null) return;
-      setLoopPan(layerId, activeLoopId, (e.clientX - el.getBoundingClientRect().left) / el.getBoundingClientRect().width);
+      setLoopPan(
+        layerId,
+        activeLoopId,
+        (e.clientX - el.getBoundingClientRect().left) /
+          el.getBoundingClientRect().width,
+      );
     },
   });
 
   // Envelope
   const handleEnvelopeKnobChange = (effect: KnobEffect, value: number) => {
-    if (activeLoopId != null) setLoopKnobValue(layerId, activeLoopId, effect, value);
+    if (activeLoopId != null)
+      setLoopKnobValue(layerId, activeLoopId, effect, value);
     else setLayerKnobValue(layerId, effect, value);
   };
 
@@ -219,6 +284,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
                     <KnobGrid
                       color={color}
                       defs={section.defs}
+                      selectedEffect={selectedEffectForLayer}
                       onKnobPointerDown={makeKnobDown("mix")}
                     />
                   </div>
@@ -235,6 +301,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
                     <KnobGrid
                       color={color}
                       defs={buildLayerKnobDefs(section.knobs, activeMapping)}
+                      selectedEffect={selectedEffectForLayer}
                       onKnobPointerDown={makeKnobDown("sound")}
                     />
                   </div>
@@ -245,10 +312,15 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
                   <div className="page-divider" />
                   <div className="page-section">
                     <div className="page-section-header">
-                      <span className="page-section-label">{LOOP_EFFECT_LABELS[et]}</span>
+                      <span className="page-section-label">
+                        {LOOP_EFFECT_LABELS[et]}
+                      </span>
                       <button
                         className="effect-remove-btn"
-                        onClick={(e) => { e.stopPropagation(); handleRemoveEffect(et); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveEffect(et);
+                        }}
                         aria-label={`Remove ${LOOP_EFFECT_LABELS[et]}`}
                       >
                         ×
@@ -256,7 +328,11 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
                     </div>
                     <KnobGrid
                       color={color}
-                      defs={buildLayerKnobDefs(EFFECT_PAGE_KNOBS[et], activeMapping)}
+                      defs={buildLayerKnobDefs(
+                        EFFECT_PAGE_KNOBS[et],
+                        activeMapping,
+                      )}
+                      selectedEffect={selectedEffectForLayer}
                       onKnobPointerDown={makeKnobDown("sound")}
                     />
                   </div>
@@ -271,8 +347,10 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
       <div className="lc-right">
         <div className="lc-right-top">
           <div className="pills">
-            <span className="pill pill-snd">{layer.role}</span>
-            <span className="pill">{loopCount} loop{loopCount !== 1 ? "s" : ""}</span>
+            <span className="pill pill-snd">{activeLoopSound.soundId}</span>
+            <span className="pill">
+              {loopCount} loop{loopCount !== 1 ? "s" : ""}
+            </span>
           </div>
         </div>
         <div className="lc-right-mid">
@@ -282,9 +360,15 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
             </span>
             <div
               className="fdr"
-              onPointerDown={(event) => { event.stopPropagation(); handleFaderPointerDown(event); }}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                handleFaderPointerDown(event);
+              }}
             >
-              <div className="fdr-fill" style={{ width: `${faderPercent}%`, background: color }} />
+              <div
+                className="fdr-fill"
+                style={{ width: `${faderPercent}%`, background: color }}
+              />
               <div className="fdr-thumb" style={{ left: `${faderPercent}%` }} />
             </div>
           </div>
@@ -293,12 +377,18 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
               <span className="fdr-row-label">pan</span>
               <div
                 className="pan-ctrl"
-                onPointerDown={(event) => { event.stopPropagation(); handlePanPointerDown(event); }}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  handlePanPointerDown(event);
+                }}
               >
                 <span className="pan-label pan-label-left">L</span>
                 <div className="pan-center" />
                 <span className="pan-label pan-label-right">R</span>
-                <div className="pan-thumb" style={{ left: `${panPercent}%`, borderColor: color }} />
+                <div
+                  className="pan-thumb"
+                  style={{ left: `${panPercent}%`, borderColor: color }}
+                />
               </div>
             </div>
           )}
@@ -306,14 +396,20 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
         <div className="layer-btn-row">
           <button
             className={`mute-btn ${muted ? "mute-btn-on" : ""}`}
-            onClick={(e) => { e.stopPropagation(); toggleManualMute(layerId); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleManualMute(layerId);
+            }}
             aria-label={`mute layer ${layerId}`}
           >
             M
           </button>
           <button
             className={`mute-btn ${solo ? "solo-btn-on" : ""}`}
-            onClick={(e) => { e.stopPropagation(); toggleLayerSolo(layerId); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLayerSolo(layerId);
+            }}
             aria-label={`solo layer ${layerId}`}
           >
             S
