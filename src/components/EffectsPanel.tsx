@@ -10,7 +10,10 @@ import type { LoopEffect, LoopEffectType } from "../types/sound";
 const EMPTY_LOOP_EFFECTS: readonly LoopEffect[] = [];
 
 const EFFECT_GROUPS: { label: string; effects: LoopEffectType[] }[] = [
-  { label: "Modulation", effects: ["chorus", "phaser", "vibrato", "autoFilter", "tremolo"] },
+  {
+    label: "Modulation",
+    effects: ["chorus", "phaser", "vibrato", "autoFilter", "tremolo"],
+  },
   { label: "Color", effects: ["distortion", "bitCrusher"] },
 ];
 
@@ -31,16 +34,17 @@ export default function EffectsPanel({ selectedLayer, open }: Props) {
     })),
   );
 
-  const setLoopPageOrder = useLayerStore((s) => s.setLoopPageOrder);
-
   const activeEffects = useSoundStore((s) =>
     activeLoopId != null
       ? s.getLoopSound(selectedLayer, activeLoopId).effects
       : EMPTY_LOOP_EFFECTS,
   );
-  const activeEffectTypes = new Set(activeEffects.map((e) => e.type as LoopEffectType));
+  const activeEffectTypes = new Set(
+    activeEffects.map((e) => e.type as LoopEffectType),
+  );
 
-  const scope = activeLoopId != null ? `loop ${activeLoopId + 1}` : "layer default";
+  const scope =
+    activeLoopId != null ? `loop ${activeLoopId + 1}` : "layer default";
 
   const handleAdd = (et: LoopEffectType) => {
     if (activeLoopId == null) return;
@@ -69,11 +73,16 @@ export default function EffectsPanel({ selectedLayer, open }: Props) {
               {group.effects.map((et) => {
                 const active = activeEffectTypes.has(et);
                 return (
-                  <div key={et} className={`snd-item ${active ? "snd-active" : ""}`}>
+                  <div
+                    key={et}
+                    className={`snd-item ${active ? "snd-active" : ""}`}
+                  >
                     <span>{LOOP_EFFECT_LABELS[et]}</span>
                     <button
                       className={`effect-toggle-btn ${active ? "effect-toggle-remove" : "effect-toggle-add"}`}
-                      onClick={() => active ? handleRemove(et) : handleAdd(et)}
+                      onClick={() =>
+                        active ? handleRemove(et) : handleAdd(et)
+                      }
                     >
                       {active ? "×" : "+"}
                     </button>

@@ -9,6 +9,7 @@ import type {
   LayerEditorState,
   PendingPlacement,
   InstanceEditMode,
+  PitchInputMode,
   SelectedKnob,
 } from "../types/layerEditor";
 
@@ -17,8 +18,9 @@ export type { SelectedKnob };
 interface LayerEditorStore extends LayerEditorState {
   selectedKnob: SelectedKnob | null;
   selectKnob: (layerId: LayerId, loopId: LayerLoopId | null, effect: string, kind: "sound" | "mix") => void;
+  setPitchInputMode: (mode: PitchInputMode) => void;
+  togglePitchInputMode: () => void;
   setSelectedLayerId: (id: LayerId) => void;
-  setSelectedKnobPage: (page: number) => void;
   selectLoop: (layerId: LayerId, loopId: LayerLoopId) => void;
   selectInstance: (
     layerId: LayerId,
@@ -78,14 +80,20 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
   selectedInstanceIds: [],
   isRecordingLoop: false,
   pendingPlacement: null,
-  selectedKnobPage: 0,
   selectedKnob: null,
+  pitchInputMode: "continuous",
   ...clearedInstanceEdit(),
 
   selectKnob: (layerId, loopId, effect, kind) =>
     set({ selectedKnob: { layerId, loopId, effect, kind } }),
 
-  setSelectedKnobPage: (page) => set({ selectedKnobPage: page }),
+  setPitchInputMode: (mode) => set({ pitchInputMode: mode }),
+
+  togglePitchInputMode: () =>
+    set((state) => ({
+      pitchInputMode:
+        state.pitchInputMode === "continuous" ? "discrete" : "continuous",
+    })),
 
   setSelectedLayerId: (id) =>
     set((state) => {
@@ -95,7 +103,6 @@ export const useLayerEditorStore = create<LayerEditorStore>()((set) => ({
         selectedLayerId: id,
         selectedLoopId: null,
         selectedInstanceIds: [],
-        selectedKnobPage: 0,
         ...clearedInstanceEdit(),
       };
     }),

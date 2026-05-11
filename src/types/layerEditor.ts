@@ -18,6 +18,7 @@ export interface PendingPlacement {
 
 /** Which edge/dimension Left/Right arrows currently adjust. */
 export type InstanceEditMode = "shift" | "start" | "end";
+export type PitchInputMode = "continuous" | "discrete";
 
 export interface InstanceEditState {
   /** What Left/Right arrows currently adjust. null = mode key held but no delta yet applied. */
@@ -45,6 +46,6 @@ export interface LayerEditorState {
   pendingPlacement: PendingPlacement | null;
   /** Active keyboard-driven instance edit session; non-null only while ≥1 instance is selected. */
   instanceEditState: InstanceEditState | null;
-  /** Which knob page is currently visible on the layer card (0-indexed). */
-  selectedKnobPage: number;
+  /** Whether SoftPot pitch gestures record/preview continuously or snap to note rows. */
+  pitchInputMode: PitchInputMode;
 }

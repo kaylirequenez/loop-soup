@@ -21,41 +21,13 @@ import { usePointerDrag } from "../hooks/usePointerDrag";
 import { buildLayerKnobDefs, buildMixKnobDefs } from "./effects/KnobGrid";
 import KnobGrid from "./effects/KnobGrid";
 import EnvelopeDisplay from "./effects/EnvelopeDisplay";
+import {
+  ALL_OPTIONAL_EFFECTS,
+  LAYER_MIX_SECTIONS,
+  coreSectionsForSoundId,
+} from "./effects/knobPages";
 
 const DRAG_SELECTION_CLASS = "drag-selection-lock";
-
-const LAYER_MIX_SECTIONS: { label: string; knobs: LayerMixEffect[] }[] = [
-  { label: "EQ", knobs: ["eqLow", "eqMid", "eqHigh"] },
-  {
-    label: "Comp",
-    knobs: ["compThreshold", "compRatio", "compAttack", "compRelease"],
-  },
-];
-
-const CORE_SECTIONS_OSCILLATOR: { label: string; knobs: KnobEffect[] }[] = [
-  { label: "Filter", knobs: ["filterCutoff", "filterResonance"] },
-  { label: "Send", knobs: ["reverbSend", "delaySend"] },
-  { label: "Synth", knobs: ["portamento", "pitchDriftRange"] },
-];
-const CORE_SECTIONS_SAMPLER: { label: string; knobs: KnobEffect[] }[] = [
-  { label: "Filter", knobs: ["filterCutoff", "filterResonance"] },
-  { label: "Send", knobs: ["reverbSend", "delaySend"] },
-  { label: "Synth", knobs: ["pitchDriftRange"] },
-];
-const CORE_SECTIONS_PLAYER: { label: string; knobs: KnobEffect[] }[] = [
-  { label: "Filter", knobs: ["filterCutoff", "filterResonance"] },
-  { label: "Send", knobs: ["reverbSend", "delaySend"] },
-];
-
-const ALL_OPTIONAL_EFFECTS: LoopEffectType[] = [
-  "chorus",
-  "phaser",
-  "vibrato",
-  "autoFilter",
-  "tremolo",
-  "distortion",
-  "bitCrusher",
-];
 
 type KnobDragState =
   | { kind: "sound"; effect: KnobEffect; startValue: number; startY: number }
@@ -115,12 +87,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
 
   const isMixPage = activeLoopId == null;
   const soundCategory = getSoundCategory(activeLoopSound.soundId);
-  const coreSections =
-    soundCategory === "player"
-      ? CORE_SECTIONS_PLAYER
-      : soundCategory === "sampler"
-        ? CORE_SECTIONS_SAMPLER
-        : CORE_SECTIONS_OSCILLATOR;
+  const coreSections = coreSectionsForSoundId(activeLoopSound.soundId);
   const activeEffects = activeLoopSound.effects;
   const activeEffectTypes = new Set(
     activeEffects.map((e) => e.type as LoopEffectType),
@@ -412,7 +379,7 @@ export default function LayerCard({ layerId }: { layerId: LayerId }) {
             }}
             aria-label={`solo layer ${layerId}`}
           >
-            S
+            N
           </button>
         </div>
       </div>

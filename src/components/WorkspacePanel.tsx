@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import LayerCard from "./LayerCard";
 import MidiMeasureNav from "./midi-settings/MidiMeasureNav";
@@ -8,7 +7,7 @@ import SoundPicker from "./SoundPicker";
 import EffectsPanel from "./EffectsPanel";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
-import type { AppView } from "../types/app";
+import { useWorkspaceUiStore } from "../store/workspaceUiStore";
 import type { LayerId } from "../types/layer";
 
 function LayerPane() {
@@ -23,9 +22,23 @@ function LayerPane() {
 }
 
 export default function WorkspacePanel() {
-  const [currentView, setCurrentView] = useState<AppView>("layers");
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [effectsOpen, setEffectsOpen] = useState(false);
+  const {
+    currentView,
+    pickerOpen,
+    effectsOpen,
+    setCurrentView,
+    togglePickerOpen,
+    toggleEffectsOpen,
+  } = useWorkspaceUiStore(
+    useShallow((s) => ({
+      currentView: s.currentView,
+      pickerOpen: s.pickerOpen,
+      effectsOpen: s.effectsOpen,
+      setCurrentView: s.setCurrentView,
+      togglePickerOpen: s.togglePickerOpen,
+      toggleEffectsOpen: s.toggleEffectsOpen,
+    })),
+  );
   const { selectedLayerId } = useLayerEditorStore(
     useShallow((s) => ({
       selectedLayerId: s.selectedLayerId,
@@ -64,13 +77,13 @@ export default function WorkspacePanel() {
           {showMidi && <MidiMenu />}
           <button
             className={`sounds-toggle ${effectsOpen ? "sounds-toggle-on" : ""}`}
-            onClick={() => { setEffectsOpen((v) => !v); setPickerOpen(false); }}
+            onClick={toggleEffectsOpen}
           >
             {effectsOpen ? "effects ✕" : "effects ▸"}
           </button>
           <button
             className={`sounds-toggle ${pickerOpen ? "sounds-toggle-on" : ""}`}
-            onClick={() => { setPickerOpen((v) => !v); setEffectsOpen(false); }}
+            onClick={togglePickerOpen}
           >
             {pickerOpen ? "sounds ✕" : "sounds ▸"}
           </button>

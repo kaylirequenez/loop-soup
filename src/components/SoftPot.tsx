@@ -27,7 +27,7 @@ const DEFAULT_SOFTPOT_POSITION = 11.5 / SOFTPOT_STEPS;
 // Require 2 consecutive non-null frames before treating A0 as a real touch.
 const A0_CONFIRM_FRAMES = 2;
 // Full strip travel changes the knob by this fraction of its range.
-const A1_SENSITIVITY = 0.5;
+const A1_SENSITIVITY = 2.5;
 
 function rowCenterPosition01(rowIndex: number) {
   return Math.max(0, Math.min(1, (rowIndex + 0.5) / SOFTPOT_STEPS));
@@ -53,6 +53,7 @@ function rowIndexFromClientY(noteColEl: HTMLDivElement, clientY: number) {
 export default function SoftPot() {
   const selectedLayer = useLayerEditorStore((s) => s.selectedLayerId);
   const isRecordingLoop = useLayerEditorStore((s) => s.isRecordingLoop);
+  const pitchInputMode = useLayerEditorStore((s) => s.pitchInputMode);
   const { octave, musicalKey } = useCompositionStore(
     useShallow((s) => ({
       octave: s.octave,
@@ -81,6 +82,11 @@ export default function SoftPot() {
     const midiFloat = topMidi - (softpotPosition * SOFTPOT_STEPS - 0.5);
     return clamp(midiFloat, LOOP_NOTE_MIDI_MIN, LOOP_NOTE_MIDI_MAX);
   }, [topMidi, softpotPosition]);
+  const activeRow = chromoRows[clamp(activeIndex, allowedMinRow, allowedMaxRow)];
+  const pitchBadgeText =
+    pitchInputMode === "discrete" && activeRow
+      ? `${activeRow.label} ${activeRow.midi}`
+      : currentMidiExact.toFixed(2);
   const [gestureActive, setGestureActive] = useState(false);
 
   const noteStartBeatRef = useRef<number | null>(null);
@@ -98,11 +104,14 @@ export default function SoftPot() {
   const prevPhysicalA0Ref = useRef<number | null>(null);
   // A1 knob control
   const prevPhysicalA1Ref = useRef<number | null>(null);
-  const a1AnchorRef = useRef<{ position: number; knobValue: number } | null>(null);
+  const a1AnchorRef = useRef<{ position: number; knobValue: number } | null>(
+    null,
+  );
 
   function currentPreviewMapping(layerId: LayerId): SoundMapping {
     const editor = useLayerEditorStore.getState();
-    const selectedLoopId = editor.selectedLayerId === layerId ? editor.selectedLoopId : null;
+    const selectedLoopId =
+      editor.selectedLayerId === layerId ? editor.selectedLoopId : null;
     if (selectedLoopId != null) {
       return useSoundStore.getState().getLoopMapping(layerId, selectedLoopId);
     }
@@ -114,13 +123,20 @@ export default function SoftPot() {
     if (!selectedKnob) return 0;
     const soundStore = useSoundStore.getState();
     if (selectedKnob.kind === "mix") {
-      const knobs = soundStore.getLayerMixKnobs(selectedKnob.layerId) as Record<string, { value: number } | undefined>;
+      const knobs = soundStore.getLayerMixKnobs(selectedKnob.layerId) as Record<
+        string,
+        { value: number } | undefined
+      >;
       return knobs[selectedKnob.effect]?.value ?? 0.5;
     }
-    const mapping = selectedKnob.loopId != null
-      ? soundStore.getLoopMapping(selectedKnob.layerId, selectedKnob.loopId)
-      : soundStore.getLayerDefaultMapping(selectedKnob.layerId);
-    const knobs = mapping.knobsByEffect as Record<string, { value: number } | undefined>;
+    const mapping =
+      selectedKnob.loopId != null
+        ? soundStore.getLoopMapping(selectedKnob.layerId, selectedKnob.loopId)
+        : soundStore.getLayerDefaultMapping(selectedKnob.layerId);
+    const knobs = mapping.knobsByEffect as Record<
+      string,
+      { value: number } | undefined
+    >;
     return knobs[selectedKnob.effect]?.value ?? 0.5;
   }
 
@@ -129,11 +145,24 @@ export default function SoftPot() {
     if (!selectedKnob) return;
     const soundStore = useSoundStore.getState();
     if (selectedKnob.kind === "mix") {
-      soundStore.setLayerMixKnobValue(selectedKnob.layerId, selectedKnob.effect as LayerMixEffect, value);
+      soundStore.setLayerMixKnobValue(
+        selectedKnob.layerId,
+        selectedKnob.effect as LayerMixEffect,
+        value,
+      );
     } else if (selectedKnob.loopId != null) {
-      soundStore.setLoopKnobValue(selectedKnob.layerId, selectedKnob.loopId, selectedKnob.effect as KnobEffect, value);
+      soundStore.setLoopKnobValue(
+        selectedKnob.layerId,
+        selectedKnob.loopId,
+        selectedKnob.effect as KnobEffect,
+        value,
+      );
     } else {
-      soundStore.setLayerKnobValue(selectedKnob.layerId, selectedKnob.effect as KnobEffect, value);
+      soundStore.setLayerKnobValue(
+        selectedKnob.layerId,
+        selectedKnob.effect as KnobEffect,
+        value,
+      );
     }
   }
 
@@ -160,14 +189,16 @@ export default function SoftPot() {
         }
       }
       initialPitchOffsetRef.current = pitchOffset ?? 0;
-      useLayerStore.getState().addLoopNote(
-        editor.selectedLayerId,
-        loopId,
-        roundedMidi % 12,
-        Math.floor(roundedMidi / 12) - 1,
-        startBeat,
-        pitchOffset,
-      );
+      useLayerStore
+        .getState()
+        .addLoopNote(
+          editor.selectedLayerId,
+          loopId,
+          roundedMidi % 12,
+          Math.floor(roundedMidi / 12) - 1,
+          startBeat,
+          pitchOffset,
+        );
     }
   };
 
@@ -179,11 +210,9 @@ export default function SoftPot() {
       capturedMidiRef.current !== null
     ) {
       const endBeat = getNowbarBeat();
-      useLayerStore.getState().endLoopNote(
-        target.layerId,
-        target.loopId,
-        endBeat,
-      );
+      useLayerStore
+        .getState()
+        .endLoopNote(target.layerId, target.loopId, endBeat);
     }
     noteStartBeatRef.current = null;
     capturedMidiRef.current = null;
@@ -228,30 +257,82 @@ export default function SoftPot() {
     commitNote();
   };
 
+  const beginDiscreteRowGesture = (row: number) => {
+    const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
+    setSoftpotToAllowedRow(row);
+    lastPreviewRowRef.current = clampedRow;
+    beginGesture(midiToFrequency(chromoRows[clampedRow].midi));
+    captureNoteStart(chromoRows[clampedRow].midi);
+  };
+
+  const updateDiscretePreviewPitch = (row: number) => {
+    const mapping = currentPreviewMapping(selectedLayer);
+    const freqHz = midiToFrequency(chromoRows[row].midi);
+    if (getSoundCategory(mapping.soundId) === "oscillator") {
+      audioEngine.slidePreviewNote(selectedLayer, freqHz);
+    } else {
+      void audioEngine.updatePreviewNote(selectedLayer, mapping, freqHz);
+    }
+  };
+
+  const performDiscreteRowUpdate = (row: number) => {
+    setSoftpotToAllowedRow(row);
+    const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
+    if (clampedRow !== lastPreviewRowRef.current) {
+      lastPreviewRowRef.current = clampedRow;
+      updateDiscretePreviewPitch(clampedRow);
+      const wasRecording = noteStartBeatRef.current !== null;
+      if (wasRecording) {
+        commitNote();
+        captureNoteStart(chromoRows[clampedRow].midi);
+      }
+    }
+  };
+
   // Shared move logic for both pointer and physical input (requires active gesture).
   const performMoveUpdate = (relative: number) => {
-    const clampedRelative = clamp(relative, allowedMinPosition, allowedMaxPosition);
-    setSoftpotPosition(clampedRelative);
-    const currentMidi = topMidi - (clampedRelative * SOFTPOT_STEPS - 0.5);
+    const clampedRelative = clamp(
+      relative,
+      allowedMinPosition,
+      allowedMaxPosition,
+    );
     const previewMapping = currentPreviewMapping(selectedLayer);
     const category = getSoundCategory(previewMapping.soundId);
     const newRow = rowIndexFromPosition(clampedRelative);
     const clampedRow = clamp(newRow, allowedMinRow, allowedMaxRow);
+    const currentMidi = topMidi - (clampedRelative * SOFTPOT_STEPS - 0.5);
+
+    setSoftpotPosition(clampedRelative);
 
     if (category !== "oscillator" && clampedRow !== lastPreviewRowRef.current) {
       lastPreviewRowRef.current = clampedRow;
-      void audioEngine.updatePreviewNote(selectedLayer, previewMapping, midiToFrequency(chromoRows[clampedRow].midi));
+      void audioEngine.updatePreviewNote(
+        selectedLayer,
+        previewMapping,
+        midiToFrequency(chromoRows[clampedRow].midi),
+      );
     } else {
       audioEngine.slidePreviewNote(selectedLayer, midiToFrequency(currentMidi));
     }
 
     const target = recordingTargetRef.current;
-    if (target && noteStartBeatRef.current !== null && capturedMidiRef.current !== null) {
+    if (
+      target &&
+      noteStartBeatRef.current !== null &&
+      capturedMidiRef.current !== null
+    ) {
       if (category === "oscillator") {
         const offset = currentMidi - capturedMidiRef.current;
         const beatOffset = getNowbarBeat() - noteStartBeatRef.current;
         if (beatOffset > 0) {
-          useLayerStore.getState().appendLoopNotePitchPoint(target.layerId, target.loopId, beatOffset, offset);
+          useLayerStore
+            .getState()
+            .appendLoopNotePitchPoint(
+              target.layerId,
+              target.loopId,
+              beatOffset,
+              offset,
+            );
         }
       } else {
         const rowMidi = chromoRows[clampedRow].midi;
@@ -267,9 +348,12 @@ export default function SoftPot() {
   // calls the current-render versions of these closures.
   const physicalCallbacksRef = useRef({
     performMoveUpdate,
+    performDiscreteRowUpdate,
     beginGesture,
+    beginDiscreteRowGesture,
     endGesture,
     captureNoteStart,
+    pitchInputMode,
     topMidi,
     allowedMinPosition,
     allowedMaxPosition,
@@ -278,9 +362,12 @@ export default function SoftPot() {
   });
   physicalCallbacksRef.current = {
     performMoveUpdate,
+    performDiscreteRowUpdate,
     beginGesture,
+    beginDiscreteRowGesture,
     endGesture,
     captureNoteStart,
+    pitchInputMode,
     topMidi,
     allowedMinPosition,
     allowedMaxPosition,
@@ -302,23 +389,40 @@ export default function SoftPot() {
       prevPhysicalA0Ref.current = a0;
       const physicalGestureActive = gestureSourceRef.current === "physical";
 
-      if (!physicalGestureActive && a0 !== null && consecutiveA0FramesRef.current >= A0_CONFIRM_FRAMES) {
+      if (
+        !physicalGestureActive &&
+        a0 !== null &&
+        consecutiveA0FramesRef.current >= A0_CONFIRM_FRAMES
+      ) {
         // Touch confirmed after debounce — start gesture
         if (gestureSourceRef.current === null) {
           gestureSourceRef.current = "physical";
-          const position01 = clamp(a0, cb.allowedMinPosition, cb.allowedMaxPosition);
-          setSoftpotPosition(position01);
-          lastPreviewRowRef.current = clamp(
+          const position01 = clamp(
+            a0,
+            cb.allowedMinPosition,
+            cb.allowedMaxPosition,
+          );
+          const row = clamp(
             rowIndexFromPosition(position01),
             cb.allowedMinRow,
             cb.allowedMaxRow,
           );
-          const midi = cb.topMidi - (position01 * SOFTPOT_STEPS - 0.5);
-          cb.beginGesture(midiToFrequency(midi));
-          cb.captureNoteStart(midi, true);
+          if (cb.pitchInputMode === "discrete") {
+            cb.beginDiscreteRowGesture(row);
+          } else {
+            setSoftpotPosition(position01);
+            lastPreviewRowRef.current = row;
+            const midi = cb.topMidi - (position01 * SOFTPOT_STEPS - 0.5);
+            cb.beginGesture(midiToFrequency(midi));
+            cb.captureNoteStart(midi, true);
+          }
         }
       } else if (physicalGestureActive && a0 !== null) {
-        cb.performMoveUpdate(a0);
+        if (cb.pitchInputMode === "discrete") {
+          cb.performDiscreteRowUpdate(rowIndexFromPosition(a0));
+        } else {
+          cb.performMoveUpdate(a0);
+        }
       } else if (physicalGestureActive && a0 === null) {
         cb.endGesture();
       }
@@ -328,12 +432,17 @@ export default function SoftPot() {
       prevPhysicalA1Ref.current = a1;
 
       if (!wasActiveA1 && a1 !== null) {
-        a1AnchorRef.current = { position: a1, knobValue: getSelectedKnobValue() };
+        a1AnchorRef.current = {
+          position: a1,
+          knobValue: getSelectedKnobValue(),
+        };
       } else if (wasActiveA1 && a1 !== null) {
         const anchor = a1AnchorRef.current;
         if (anchor) {
           // Up (lower position01) increases value, down decreases
-          applySelectedKnobValue(anchor.knobValue + (anchor.position - a1) * A1_SENSITIVITY);
+          applySelectedKnobValue(
+            anchor.knobValue + (anchor.position - a1) * A1_SENSITIVITY,
+          );
         }
       } else if (wasActiveA1 && a1 === null) {
         a1AnchorRef.current = null;
@@ -352,22 +461,40 @@ export default function SoftPot() {
         allowedMinPosition,
         allowedMaxPosition,
       );
-      const midi = topMidi - (relative * SOFTPOT_STEPS - 0.5);
-      lastPreviewRowRef.current = clamp(rowIndexFromPosition(relative), allowedMinRow, allowedMaxRow);
-      setSoftpotPosition(relative);
-      beginGesture(midiToFrequency(midi));
-      captureNoteStart(midi, true);
+      const row = clamp(
+        rowIndexFromPosition(relative),
+        allowedMinRow,
+        allowedMaxRow,
+      );
+      if (pitchInputMode === "discrete") {
+        beginDiscreteRowGesture(row);
+      } else {
+        lastPreviewRowRef.current = row;
+        const midi = topMidi - (relative * SOFTPOT_STEPS - 0.5);
+        setSoftpotPosition(relative);
+        beginGesture(midiToFrequency(midi));
+        captureNoteStart(midi, true);
+      }
     },
     onMove: (element, moveEvent) => {
       const rect = element.getBoundingClientRect();
       if (rect.height <= 0) return;
-      performMoveUpdate((moveEvent.clientY - rect.top) / rect.height);
+      if (pitchInputMode === "discrete") {
+        performDiscreteRowUpdate(
+          rowIndexFromPosition((moveEvent.clientY - rect.top) / rect.height),
+        );
+      } else {
+        performMoveUpdate((moveEvent.clientY - rect.top) / rect.height);
+      }
     },
     onEnd: () => endGesture(),
   });
 
-  const handleStripPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (gestureSourceRef.current !== null) return;
+  const handleStripPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (gestureSourceRef.current === "physical") return;
+    if (gestureSourceRef.current === "screen") endGesture();
     rawHandleStripPointerDown(event);
   };
 
@@ -375,42 +502,34 @@ export default function SoftPot() {
     onStart: (noteCol, event) => {
       gestureSourceRef.current = "screen";
       const row = rowIndexFromClientY(noteCol, event.clientY);
-      const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
-      setSoftpotToAllowedRow(row);
-      lastPreviewRowRef.current = clampedRow;
-      beginGesture(midiToFrequency(chromoRows[clampedRow].midi));
-      captureNoteStart(chromoRows[clampedRow].midi);
+      beginDiscreteRowGesture(row);
     },
     onMove: (noteCol, moveEvent) => {
       const row = rowIndexFromClientY(noteCol, moveEvent.clientY);
-      setSoftpotToAllowedRow(row);
-      const clampedRow = clamp(row, allowedMinRow, allowedMaxRow);
-      if (clampedRow !== lastPreviewRowRef.current) {
-        lastPreviewRowRef.current = clampedRow;
-        void audioEngine.updatePreviewNote(
-          selectedLayer,
-          currentPreviewMapping(selectedLayer),
-          midiToFrequency(chromoRows[clampedRow].midi),
-        );
-        const wasRecording = noteStartBeatRef.current !== null;
-        if (wasRecording) {
-          commitNote();
-          captureNoteStart(chromoRows[clampedRow].midi);
-        }
-      }
+      performDiscreteRowUpdate(row);
     },
     onEnd: () => endGesture(),
   });
 
-  const handleNoteColPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (gestureSourceRef.current !== null) return;
+  const handleNoteColPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (gestureSourceRef.current === "physical") return;
+    if (gestureSourceRef.current === "screen") endGesture();
     rawHandleNoteColPointerDown(event);
   };
 
   return (
     <div className="sp-zone">
       <div className="sp-hdr">
-        <div className="sp-badge">{`${currentMidiExact.toFixed(2)}`}</div>
+        <div
+          className={`sp-badge sp-badge--${pitchInputMode}`}
+          onClick={() => useLayerEditorStore.getState().togglePitchInputMode()}
+          style={{ cursor: "pointer" }}
+          title={pitchInputMode === "continuous" ? "Switch to discrete mode" : "Switch to continuous mode"}
+        >
+          {pitchBadgeText}
+        </div>
       </div>
       <div className="sp-body">
         <div className="sp-strip" onPointerDown={handleStripPointerDown}>

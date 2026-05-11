@@ -1,15 +1,11 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
-  getNowbarBeat,
   restartPlaybackFromBeat,
   seekTransportBeatAndPanic,
   snapPlayheadToMeasureStart,
 } from "../audio/transportController";
-import {
-  compositionLoopBeatLength,
-  maxMeasuresCompositionLimit,
-} from "../utils/compositionState";
+import { maxMeasuresCompositionLimit } from "../utils/compositionState";
 import { oneBasedRange } from "../utils";
 import {
   getRepeatEveryForUnit,
@@ -20,11 +16,18 @@ import {
 } from "../utils/layerState";
 import { useLayerStore } from "../store/layerStore";
 import { useLayerEditorStore } from "../store/layerEditorStore";
-import { useMidiStore } from "../store/midiStore";
 import { useCompositionStore } from "../store/compositionStore";
 import { useTransportStore } from "../store/transportStore";
+import {
+  addCompositionMeasure,
+  endLoopRecording,
+  getCompositionDims,
+  removeCompositionMeasure,
+  startLoopRecording,
+} from "./userInput/controlActions";
 import { IconRestartComposition, IconRestartView } from "../ui/restartIcons";
 import { RepeatUnit } from "../types/layer";
+import ShortcutDock from "./ShortcutDock";
 
 export default function BottomControls() {
   const { isPlaying, togglePlaying } = useTransportStore(
@@ -33,11 +36,10 @@ export default function BottomControls() {
       togglePlaying: s.togglePlaying,
     })),
   );
-  const { meter, totalMeasures, setTotalMeasures } = useCompositionStore(
+  const { meter, totalMeasures } = useCompositionStore(
     useShallow((s) => ({
       meter: s.meter,
       totalMeasures: s.totalMeasures,
-      setTotalMeasures: s.setTotalMeasures,
     })),
   );
   const {
@@ -46,7 +48,6 @@ export default function BottomControls() {
     selectedInstanceIds,
     isRecordingLoop,
     instanceEditState,
-    stopRecording,
     setPendingPlacement,
   } = useLayerEditorStore(
     useShallow((s) => ({
@@ -55,13 +56,11 @@ export default function BottomControls() {
       selectedInstanceIds: s.selectedInstanceIds,
       isRecordingLoop: s.isRecordingLoop,
       instanceEditState: s.instanceEditState,
-      stopRecording: s.stopRecording,
       setPendingPlacement: s.setPendingPlacement,
     })),
   );
   const {
     layers,
-    addNewLoop,
     shiftLoopNotesOctave,
     setLoopRepeatUnit,
     setLoopRepeatEvery,
@@ -69,7 +68,6 @@ export default function BottomControls() {
   } = useLayerStore(
     useShallow((s) => ({
       layers: s.layers,
-      addNewLoop: s.addNewLoop,
       shiftLoopNotesOctave: s.shiftLoopNotesOctave,
       setLoopRepeatUnit: s.setLoopRepeatUnit,
       setLoopRepeatEvery: s.setLoopRepeatEvery,
@@ -77,19 +75,7 @@ export default function BottomControls() {
     })),
   );
 
-  const compositionDims = {
-    beatsPerMeasure: meter.beatsPerMeasure,
-    compositionEndBeat: compositionLoopBeatLength(
-      totalMeasures,
-      meter.beatsPerMeasure,
-    ),
-  };
-  const { midiMeasuresVisible, setMidiMeasuresVisible } = useMidiStore(
-    useShallow((s) => ({
-      midiMeasuresVisible: s.midiMeasuresVisible,
-      setMidiMeasuresVisible: s.setMidiMeasuresVisible,
-    })),
-  );
+  const compositionDims = getCompositionDims();
   const { viewMeasureIndex, setViewMeasureIndex } = useTransportStore(
     useShallow((s) => ({
       viewMeasureIndex: s.viewMeasureIndex,
@@ -141,26 +127,10 @@ export default function BottomControls() {
         }`
       : null;
 
-  const handleStartRecording = () => {
-    addNewLoop(selectedLayerId);
-  };
-
-  const handleEndRecording = () => {
-    const es = useLayerEditorStore.getState();
-    const endBeat = getNowbarBeat();
-    if (es.selectedLoopId !== null) {
-      useLayerStore
-        .getState()
-        .finalizeLoop(es.selectedLayerId, es.selectedLoopId, endBeat);
-    }
-    stopRecording();
-  };
-
   useEffect(() => {
     if (!isPlaying && useLayerEditorStore.getState().isRecordingLoop) {
-      handleEndRecording();
+      endLoopRecording();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying]);
 
   const handleRestartFromStart = () => {
@@ -173,22 +143,6 @@ export default function BottomControls() {
   };
 
   const handleSnapPlayhead = () => snapPlayheadToMeasureStart(viewMeasureIndex);
-  const handleAddMeasure = () => {
-    const newTotal = totalMeasures + 1;
-    setTotalMeasures(newTotal);
-    setViewMeasureIndex(newTotal - midiMeasuresVisible);
-  };
-
-  const handleRemoveMeasure = () => {
-    if (!canRemoveLastMeasure) return;
-    const newTotal = totalMeasures - 1;
-    const nextVisible = Math.min(midiMeasuresVisible, newTotal);
-    const nextMaxStart = Math.max(0, newTotal - nextVisible);
-    setMidiMeasuresVisible(nextVisible);
-    setTotalMeasures(newTotal);
-    setViewMeasureIndex(Math.min(viewMeasureIndex, nextMaxStart));
-  };
-
   return (
     <div className="bottom">
       <div className="bottom-bar">
@@ -218,7 +172,7 @@ export default function BottomControls() {
             <button
               className={`btn-add ${isRecordingLoop ? "btn-add-on" : ""}`}
               onClick={
-                isRecordingLoop ? handleEndRecording : handleStartRecording
+                isRecordingLoop ? endLoopRecording : startLoopRecording
               }
             >
               +
@@ -233,14 +187,14 @@ export default function BottomControls() {
               type="button"
               className="btn"
               disabled={!canAddMeasure}
-              onClick={handleAddMeasure}
+              onClick={addCompositionMeasure}
             >
               + measure
             </button>
             <button
               type="button"
               className="btn"
-              onClick={handleRemoveMeasure}
+              onClick={removeCompositionMeasure}
               disabled={!canRemoveLastMeasure}
             >
               - measure
@@ -411,6 +365,7 @@ export default function BottomControls() {
           </div>
         </div>
       </div>
+      <ShortcutDock />
     </div>
   );
 }
